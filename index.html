@@ -1,0 +1,1911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Training Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0a; color: #ddd; }
+    #root { min-height: 100vh; }
+    /* PIN screen */
+    #pin-screen {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 100vh;
+      background: #0a0a0a; gap: 20px;
+    }
+    #pin-screen h2 { font-family: monospace; color: #3a3a3a; font-size: 11px;
+      letter-spacing: 0.2em; font-weight: normal; }
+    #pin-dots { display: flex; gap: 12px; margin: 8px 0; }
+    .pin-dot { width: 10px; height: 10px; border-radius: 50%;
+      border: 1px solid #333; background: transparent; transition: background 0.15s; }
+    .pin-dot.filled { background: #D4580A; border-color: #D4580A; }
+    #pin-keypad { display: grid; grid-template-columns: repeat(3, 64px); gap: 10px; }
+    .pin-key {
+      height: 52px; border-radius: 10px; border: 1px solid #1e1e1e;
+      background: #0d0d0d; color: #ccc; font-size: 18px; font-family: monospace;
+      cursor: pointer; transition: background 0.1s;
+    }
+    .pin-key:active { background: #1a1a1a; }
+    #pin-error { font-family: monospace; font-size: 10px; color: #CC2244;
+      height: 14px; letter-spacing: 0.1em; }
+  </style>
+</head>
+<body>
+
+<!-- PIN gate — shown before React mounts -->
+<div id="pin-screen">
+  <h2>TRAINING DASHBOARD</h2>
+  <div id="pin-dots">
+    <div class="pin-dot" id="d0"></div>
+    <div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div>
+    <div class="pin-dot" id="d3"></div>
+  </div>
+  <div id="pin-keypad">
+    <button class="pin-key" onclick="pinKey('1')">1</button>
+    <button class="pin-key" onclick="pinKey('2')">2</button>
+    <button class="pin-key" onclick="pinKey('3')">3</button>
+    <button class="pin-key" onclick="pinKey('4')">4</button>
+    <button class="pin-key" onclick="pinKey('5')">5</button>
+    <button class="pin-key" onclick="pinKey('6')">6</button>
+    <button class="pin-key" onclick="pinKey('7')">7</button>
+    <button class="pin-key" onclick="pinKey('8')">8</button>
+    <button class="pin-key" onclick="pinKey('9')">9</button>
+    <button class="pin-key" onclick="pinKey('clr')" style="font-size:12px;color:#555;">CLR</button>
+    <button class="pin-key" onclick="pinKey('0')">0</button>
+    <button class="pin-key" onclick="pinKey('del')" style="font-size:12px;color:#555;">⌫</button>
+  </div>
+  <div id="pin-error"></div>
+</div>
+
+<div id="root" style="display:none;"></div>
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCjjP44DDK0Bh2uUhjR8yf_c81PZql5KGw",
+    authDomain: "training-dashboard-5df66.firebaseapp.com",
+    databaseURL: "https://training-dashboard-5df66-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "training-dashboard-5df66",
+    storageBucket: "training-dashboard-5df66.firebasestorage.app",
+    messagingSenderId: "154731548083",
+    appId: "1:154731548083:web:02c6b103aef1303dd08fc6"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getDatabase(app);
+
+  // expose to non-module scripts
+  window._fbDb  = db;
+  window._fbRef = ref;
+  window._fbGet = get;
+  window._fbSet = set;
+
+  // ── PIN logic ──────────────────────────────────────────────────────────────
+  const CORRECT_PIN = "1234"; // ← CHANGE THIS TO YOUR PIN
+  const SESSION_KEY = "td_unlocked";
+
+  let pinEntry = "";
+
+  function updateDots() {
+    for (let i = 0; i < 4; i++) {
+      document.getElementById("d" + i).classList.toggle("filled", i < pinEntry.length);
+    }
+  }
+
+  window.pinKey = (k) => {
+    const err = document.getElementById("pin-error");
+    err.textContent = "";
+    if (k === "clr") { pinEntry = ""; updateDots(); return; }
+    if (k === "del") { pinEntry = pinEntry.slice(0, -1); updateDots(); return; }
+    if (pinEntry.length >= 4) return;
+    pinEntry += k;
+    updateDots();
+    if (pinEntry.length === 4) {
+      if (pinEntry === CORRECT_PIN) {
+        sessionStorage.setItem(SESSION_KEY, "1");
+        mountApp();
+      } else {
+        err.textContent = "incorrect pin";
+        pinEntry = "";
+        updateDots();
+      }
+    }
+  };
+
+  function mountApp() {
+    document.getElementById("pin-screen").style.display = "none";
+    document.getElementById("root").style.display = "block";
+    // Babel script may still be compiling — poll until _mountReact is ready
+    const tryMount = () => {
+      if (typeof window._mountReact === "function") {
+        window._mountReact();
+      } else {
+        setTimeout(tryMount, 50);
+      }
+    };
+    tryMount();
+  }
+
+  // skip PIN if already unlocked this session
+  if (sessionStorage.getItem(SESSION_KEY)) { setTimeout(mountApp, 100); }
+</script>
+
+<!-- React + Babel -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ─── Firebase storage (replaces window.storage) ───────────────────────────────
+const DB_PATH = "training/v5";
+const loadData = async () => {
+  try {
+    const snap = await window._fbGet(window._fbRef(window._fbDb, DB_PATH));
+    return snap.exists() ? snap.val() : {};
+  } catch(e) {
+    console.error("Firebase load error:", e);
+    return {};
+  }
+};
+const saveData = async (d) => {
+  try {
+    await window._fbSet(window._fbRef(window._fbDb, DB_PATH), d);
+  } catch(e) {
+    console.error("Firebase save error:", e);
+  }
+};
+
+
+// ─── Colors ───────────────────────────────────────────────────────────────────
+const C = {
+  strengthLong:  "#D4580A",
+  strengthShort: "#F09A50",
+  spin:          "#6B35A8",
+  bodypump:      "#CC2244",
+  run:           "#3A78D4",
+  bike:          "#9B6FD4",
+  walk:          "#4CAF70",
+  rest:          "#1a1a1a",
+  other:         "#666666",
+};
+
+const ACTIVITY_TYPES = [
+  { id:"strength_long",  label:"Strength — Long",  short:"Str L",  color:C.strengthLong,  icon:"⚡", group:"strength" },
+  { id:"strength_short", label:"Strength — Short", short:"Str S",  color:C.strengthShort, icon:"⚡", group:"strength" },
+  { id:"bodypump",       label:"BodyPump",          short:"Pump",   color:C.bodypump,      icon:"🏋️", group:"strength" },
+  { id:"spin",           label:"Spin Class",        short:"Spin",   color:C.spin,          icon:"🚴", group:"cardio"   },
+  { id:"walk",           label:"Walk",              short:"Walk",   color:C.walk,          icon:"🚶", group:"low"      },
+  { id:"bike",           label:"Outdoor Ride",      short:"Ride",   color:C.bike,          icon:"🚵", group:"bike"     },
+  { id:"run",            label:"Run",               short:"Run",    color:C.run,           icon:"🏃", group:"run"      },
+  { id:"rest",           label:"Rest / Recovery",   short:"Rest",   color:C.rest,          icon:"💤", group:"rest"     },
+  { id:"other",          label:"Other",             short:"Other",  color:C.other,         icon:"✦", group:"other"    },
+];
+
+const MUSCLE_GROUPS = [
+  { id:"legs",  label:"Legs",  icon:"🦵" },
+  { id:"back",  label:"Back",  icon:"🔙" },
+  { id:"chest", label:"Chest", icon:"💪" },
+];
+
+const INTENSITY_LEVELS = ["Easy","Moderate","Hard","Max"];
+const FATIGUE_LEVELS   = ["Fresh","Normal","Tired","Exhausted"];
+const INTENSITY_COLORS = { Easy:"#4CAF70", Moderate:"#F09A50", Hard:"#E06030", Max:"#CC2244" };
+const FATIGUE_COLORS   = { Fresh:"#4CAF70", Normal:"#7BC47F", Tired:"#F09A50", Exhausted:"#CC2244" };
+
+const WEEKLY_TARGETS = {
+  strength: { target:3, label:"Strength", icon:"⚡", color:C.strengthLong },
+  spin:     { target:1, label:"Spin",     icon:"🚴", color:C.spin         },
+  bodypump: { target:1, label:"BodyPump", icon:"🏋️", color:C.bodypump     },
+};
+
+const getAct = (id) => ACTIVITY_TYPES.find(a=>a.id===id) || ACTIVITY_TYPES[8];
+
+// ─── Parsers ──────────────────────────────────────────────────────────────────
+const parseMins = (str) => {
+  if (!str && str !== 0) return 0;
+  if (typeof str === "number") return str;
+  const s = String(str).toLowerCase().replace(/\s+/g,"");
+  const hm = s.match(/(\d+(?:\.\d+)?)h(?:r|ours?)?(?:(\d+)(?:m|min)?)?/);
+  if (hm) { let m=parseFloat(hm[1])*60; if(hm[2]) m+=parseInt(hm[2]); return Math.round(m); }
+  const colon = s.match(/^(\d+):(\d+)$/);
+  if (colon) return parseInt(colon[1])*60+parseInt(colon[2]);
+  const mins = s.match(/(\d+(?:\.\d+)?)/);
+  if (mins) return Math.round(parseFloat(mins[1]));
+  return 0;
+};
+
+const parseKm = (str) => {
+  if (!str && str !== 0) return 0;
+  if (typeof str === "number") return str;
+  const n = parseFloat(String(str).replace(/[^0-9.]/g,""));
+  return isNaN(n) ? 0 : n;
+};
+
+const fmtMins = (m) => m>=60 ? `${Math.floor(m/60)}h${m%60>0?" "+m%60+"m":""}` : `${m}m`;
+const fmtKm   = (k) => k>0 ? `${Number(k).toFixed(1)} km` : "—";
+
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+const isoMonday = (d) => { const x=new Date(d); const day=x.getDay(); x.setDate(x.getDate()+(day===0?-6:1-day)); x.setHours(0,0,0,0); return x; };
+const addDays   = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+const wKey = (m) => { const y=m.getFullYear(),mo=String(m.getMonth()+1).padStart(2,"0"),d=String(m.getDate()).padStart(2,"0"); return `${y}-${mo}-${d}`; };
+const dKey = (d) => { const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${dd}`; };
+const fmtRange = (m) => `${m.toLocaleDateString("en-GB",{day:"numeric",month:"short"})} – ${addDays(m,6).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`;
+const DAYS_S = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+
+const SliderInput = ({ value, onChange, min, max, step=1, color, unit="" }) => {
+  const pct = Math.min(((value-min)/(max-min))*100,100);
+  return (
+    <div style={{position:"relative"}}>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+        <span style={{fontSize:9,color:"#3a3a3a",fontFamily:"monospace"}}>{min}{unit}</span>
+        <span style={{fontSize:11,fontFamily:"monospace",color,fontWeight:"bold"}}>{value}{unit}</span>
+        <span style={{fontSize:9,color:"#3a3a3a",fontFamily:"monospace"}}>{max}{unit}</span>
+      </div>
+      <div style={{position:"relative",height:20,display:"flex",alignItems:"center"}}>
+        {/* track */}
+        <div style={{position:"absolute",left:0,right:0,height:4,background:"#1e1e1e",borderRadius:2}}>
+          <div style={{position:"absolute",left:0,height:"100%",width:`${pct}%`,background:color,borderRadius:2,opacity:0.8}}/>
+        </div>
+        <input
+          type="range" min={min} max={max} step={step}
+          value={value}
+          onChange={e=>onChange(Number(e.target.value))}
+          style={{
+            position:"absolute",left:0,right:0,width:"100%",
+            WebkitAppearance:"none",appearance:"none",
+            background:"transparent",cursor:"pointer",height:20,margin:0,
+            outline:"none",
+          }}
+        />
+      </div>
+      <style>{`
+        input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #0a0a0a;cursor:pointer;}
+        input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #0a0a0a;cursor:pointer;}
+      `}</style>
+    </div>
+  );
+};
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
+function App() {
+  const today = new Date();
+  const todayKey = dKey(today);
+
+  const [data, setData]         = useState({});
+  const [loaded, setLoaded]     = useState(false);
+  const [page, setPage]         = useState("tracker");
+  const [viewMode, setViewMode] = useState("single");
+  const [weekStart, setWeekStart] = useState(isoMonday(today));
+  const [modal, setModal]       = useState(false);
+  const [es, setEs]             = useState(null);
+  const [strengthOpen, setStrengthOpen] = useState(false);
+  const [cardioOpen, setCardioOpen]     = useState(false);
+  const [streakIncludeCurrent, setStreakIncludeCurrent] = useState(true);
+
+  useEffect(()=>{ loadData().then(d=>{setData(d);setLoaded(true)}) },[]);
+
+  const persist = (nd) => { setData(nd); saveData(nd); };
+  const getSessions = (dk) => data[dk]||[];
+
+  const saveSess = (dk,sess) => {
+    const nd={...data}; const list=[...(nd[dk]||[])];
+    const i=list.findIndex(s=>s.id===sess.id);
+    if(i>=0) list[i]=sess; else list.push(sess);
+    nd[dk]=list; persist(nd);
+  };
+  const delSess  = (dk,id) => { const nd={...data}; nd[dk]=(nd[dk]||[]).filter(s=>s.id!==id); persist(nd); };
+  const toggleDone = (dk,id) => { const nd={...data}; nd[dk]=(nd[dk]||[]).map(s=>s.id===id?{...s,done:!s.done}:s); persist(nd); };
+
+  const newEs = (dk) => ({ id:Date.now(), type:"", done:true,
+    durationMins:0, durationText:"", intensity:"", fatigue_pre:"", fatigue_post:"",
+    food_pre:"", food_post:"", notes:"", muscles:[],
+    runDistKm:0, runTimeMins:0, runTimeText:"",
+    bikeDistKm:0, bikeTimeMins:0, bikeTimeText:"",
+    _dk:dk });
+
+  const openAdd  = (dk) => { setEs(newEs(dk)); setModal(true); };
+  const openEdit = (dk,s) => { setEs({...newEs(dk),...s,muscles:s.muscles||[],_dk:dk}); setModal(true); };
+  const closeModal = () => { setModal(false); setEs(null); };
+
+  const handleSave = () => {
+    if (!es?.type) return;
+    const {_dk,...sess} = es;
+    // compose duration string from slider if no manual text
+    const dur = es.durationText || (es.durationMins>0 ? `${es.durationMins} min` : "");
+    saveSess(_dk,{...sess,duration:dur}); closeModal();
+  };
+
+  // ── is rest day ───────────────────────────────────────────────────────────
+  const isDayRest = (dk) => {
+    const s = getSessions(dk);
+    return s.length===0 || s.every(x=>x.type==="walk"||x.type==="rest"||x.type==="");
+  };
+
+  // ── week analytics ────────────────────────────────────────────────────────
+  const weekStats = (monday) => {
+    const counts={strength:0,spin:0,bodypump:0};
+    const done={strength:0,spin:0,bodypump:0};
+    const muscles={legs:0,back:0,chest:0};
+    let hiDays=0,streak=0,consWarn=false,totalMins=0,intensityMins=0;
+    let totalRunKm=0,totalRunMins=0,totalBikeKm=0,totalBikeMins=0,totalSpinMins=0;
+    const actBreakdown={};
+
+    for(let i=0;i<7;i++){
+      const dk=dKey(addDays(monday,i));
+      const sessions=getSessions(dk);
+      const isHard=sessions.some(s=>s.done&&(s.intensity==="Hard"||s.intensity==="Max"));
+      streak=isHard?streak+1:0;
+      if(isHard) hiDays++;
+      if(streak>=2) consWarn=true;
+
+      sessions.forEach(s=>{
+        const mins=parseMins(s.durationText||s.durationMins||s.duration);
+        if(s.done){ totalMins+=mins; actBreakdown[s.type]=(actBreakdown[s.type]||0)+mins; }
+        if(s.done&&(s.intensity==="Hard"||s.intensity==="Max")) intensityMins+=mins;
+
+        if(s.type==="strength_long"||s.type==="strength_short"){ counts.strength++; if(s.done) done.strength++; }
+        if(s.type==="bodypump"){ counts.bodypump++; if(s.done) done.bodypump++; }
+        if(s.type==="spin"){ counts.spin++; if(s.done) done.spin++; }
+        if(s.done&&s.type==="run"){ totalRunKm+=parseKm(s.runDistKm); totalRunMins+=parseMins(s.runTimeText||s.runTimeMins); }
+        if(s.done&&s.type==="bike"){ totalBikeKm+=parseKm(s.bikeDistKm); totalBikeMins+=parseMins(s.bikeTimeText||s.bikeTimeMins); }
+        if(s.done&&s.type==="spin"){ totalSpinMins+=parseMins(s.durationText||s.durationMins||s.duration); }
+
+        (s.muscles||[]).forEach(mg=>{
+          muscles[mg]=(muscles[mg]||0)+1;
+        });
+      });
+    }
+    return {counts,done,muscles,hiDays,consWarn,totalMins,intensityMins,actBreakdown,totalRunKm,totalRunMins,totalBikeKm,totalBikeMins,totalSpinMins};
+  };
+
+  // ── all weeks for stats page ──────────────────────────────────────────────
+  const allWeeksStats = () => {
+    const allDayKeys=Object.keys(data);
+    if(!allDayKeys.length) return [];
+    const dates=allDayKeys.map(dk=>new Date(dk)).sort((a,b)=>a-b);
+    const firstMonday=isoMonday(dates[0]);
+    const lastMonday=isoMonday(dates[dates.length-1]);
+    const weeks=[]; let m=new Date(firstMonday);
+    while(m<=lastMonday){ weeks.push({monday:new Date(m),stats:weekStats(m)}); m=addDays(m,7); }
+    return weeks.reverse();
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DAY CELL
+  // ─────────────────────────────────────────────────────────────────────────
+  const DayCell = ({date,compact}) => {
+    const dk=dKey(date);
+    const sessions=getSessions(dk);
+    const isToday=dk===todayKey;
+    const isRest=isDayRest(dk);
+    const active=sessions.filter(s=>s.type&&s.type!=="rest");
+    const strips=active.map(s=>({color:getAct(s.type).color,done:s.done}));
+
+    if(compact){
+      return(
+        <div style={{cursor:"pointer"}} onClick={()=>{setWeekStart(isoMonday(date));setViewMode("single");}}>
+          <div style={{fontSize:9,fontFamily:"monospace",textAlign:"center",marginBottom:4,color:isToday?"#F09A50":"#3a3a3a",letterSpacing:"0.06em"}}>
+            {DAYS_S[date.getDay()===0?6:date.getDay()-1]}
+          </div>
+          <div style={{height:54,border:`1px solid ${isToday?"#D4580A55":"#1a1a1a"}`,borderRadius:8,background:isRest?"#0c0c0c":"#111",position:"relative",overflow:"hidden"}}>
+            {strips.length>0?(
+              <div style={{display:"flex",height:"100%",padding:3,gap:2}}>
+                {strips.map((s,i)=><div key={i} style={{flex:1,borderRadius:4,background:s.color,opacity:s.done?0.95:0.38,minWidth:4}}/>)}
+              </div>
+            ):(
+              <div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <span style={{color:"#1e1e1e",fontSize:10}}>—</span>
+              </div>
+            )}
+            <div style={{position:"absolute",bottom:2,right:4,fontSize:9,fontFamily:"monospace",color:isToday?"#D4580A":"#252525"}}>{date.getDate()}</div>
+          </div>
+          <div style={{display:"flex",gap:1,marginTop:3,justifyContent:"center",minHeight:12}}>
+            {active.map(s=><span key={s.id} style={{fontSize:9,opacity:s.done?1:0.4}}>{getAct(s.type).icon}</span>)}
+          </div>
+        </div>
+      );
+    }
+
+    return(
+      <div style={{border:`1px solid ${isToday?"#D4580A44":"#181818"}`,borderRadius:10,overflow:"hidden",display:"flex",flexDirection:"column",minHeight:175,background:isRest?"#0b0b0b":"#111"}}>
+        {strips.length>0&&(
+          <div style={{height:5,display:"flex",flexShrink:0}}>
+            {strips.map((s,i)=><div key={i} style={{flex:1,background:s.color,opacity:s.done?0.9:0.45}}/>)}
+          </div>
+        )}
+        <div style={{padding:"8px 8px 7px",flex:1,display:"flex",flexDirection:"column",gap:5}}>
+          <div style={{display:"flex",alignItems:"center",gap:5}}>
+            <span style={{fontSize:11,fontFamily:"monospace",fontWeight:"bold",color:isToday?"#D4580A":"#444"}}>{date.getDate()}</span>
+            {isToday&&<span style={{width:5,height:5,borderRadius:"50%",background:"#D4580A",marginLeft:3}}/>}
+            {isRest&&sessions.length===0&&<span style={{fontSize:8,color:"#282828",fontFamily:"monospace",marginLeft:"auto"}}>rest</span>}
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:4,flex:1}}>
+            {sessions.map(s=>{
+              const a=getAct(s.type);
+              const durMins=parseMins(s.durationText||s.durationMins||s.duration);
+              const showDist = (s.type==="run"&&parseKm(s.runDistKm)>0)||(s.type==="bike"&&parseKm(s.bikeDistKm)>0);
+              return(
+                <div key={s.id} style={{borderRadius:5,padding:"5px 7px",cursor:"pointer",borderLeft:`3px solid ${a.color}`,background:s.done?`${a.color}18`:"#161616",opacity:s.done?1:0.68}}
+                  onClick={()=>openEdit(dk,s)}>
+                  <div style={{display:"flex",alignItems:"center",gap:4}}>
+                    <span style={{fontSize:10}}>{a.icon}</span>
+                    <span style={{fontSize:10,fontFamily:"monospace",flex:1,color:s.done?a.color:"#999"}}>{a.short}</span>
+                    {(s.muscles||[]).map(mg=>(
+                      <span key={mg} style={{fontSize:8,background:`${a.color}22`,color:a.color,borderRadius:3,padding:"1px 4px",fontFamily:"monospace"}}>{mg}</span>
+                    ))}
+                    <button style={{width:13,height:13,borderRadius:3,border:`1px solid ${a.color}`,background:s.done?a.color:"transparent",cursor:"pointer",fontSize:7,color:"#0c0c0c",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}
+                      onClick={e=>{e.stopPropagation();toggleDone(dk,s.id)}}>{s.done?"✓":""}</button>
+                  </div>
+                  {(durMins>0||showDist)&&(
+                    <div style={{fontSize:9,color:"#555",fontFamily:"monospace",marginTop:1,display:"flex",gap:6}}>
+                      {durMins>0&&<span>{fmtMins(durMins)}</span>}
+                      {s.type==="run"&&parseKm(s.runDistKm)>0&&<span style={{color:C.run}}>{fmtKm(s.runDistKm)}</span>}
+                      {s.type==="bike"&&parseKm(s.bikeDistKm)>0&&<span style={{color:C.bike}}>{fmtKm(s.bikeDistKm)}</span>}
+                    </div>
+                  )}
+                  {s.intensity&&<div style={{fontSize:9,fontFamily:"monospace",color:INTENSITY_COLORS[s.intensity]}}>{s.intensity}</div>}
+                </div>
+              );
+            })}
+          </div>
+          <button style={{background:"transparent",border:"1px dashed #1e1e1e",borderRadius:5,color:"#2e2e2e",fontSize:9,padding:"4px 0",cursor:"pointer",fontFamily:"monospace",width:"100%"}}
+            onClick={()=>openAdd(dk)}>+ add</button>
+        </div>
+      </div>
+    );
+  };
+
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // STRENGTH PANEL (collapsible)
+  // ─────────────────────────────────────────────────────────────────────────
+  const StrengthPanel = ({weekMuscleData,weekRunSessions,weekBikeSessions,weekSpinSessions,open,setOpen}) => {
+    const allDone = MUSCLE_GROUPS.every(mg=>weekMuscleData[mg.id].doneCount>0);
+    const remaining = MUSCLE_GROUPS.filter(mg=>weekMuscleData[mg.id].doneCount===0);
+    const legsWarn = (weekRunSessions.some(({s})=>s.done)||weekBikeSessions.some(({s})=>s.done)||weekSpinSessions.some(({s})=>s.done))&&weekMuscleData["legs"].doneCount===0;
+    return(
+      <div style={{background:"#0e0e0e",border:"1px solid #1a1a1a",borderRadius:10,marginBottom:14,overflow:"hidden"}}>
+        <button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"12px 16px",display:"flex",alignItems:"center",gap:8}}
+          onClick={()=>setOpen(o=>!o)}>
+          <span style={{fontSize:9,letterSpacing:"0.16em",color:"#3a3a3a",fontFamily:"monospace",flex:1,textAlign:"left"}}>STRENGTH — MUSCLE GROUPS THIS WEEK</span>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            {MUSCLE_GROUPS.map(mg=>{
+              const dc=weekMuscleData[mg.id].doneCount;
+              return(
+                <div key={mg.id} style={{display:"flex",alignItems:"center",gap:2,background:dc>0?`${C.strengthLong}18`:"#111",border:`1px solid ${dc>0?C.strengthLong:"#222"}`,borderRadius:4,padding:"2px 5px"}}>
+                  <span style={{fontSize:9}}>{mg.icon}</span>
+                  <span style={{fontSize:8,fontFamily:"monospace",color:dc>0?C.strengthLong:"#333"}}>{dc>0?"✓":"—"}</span>
+                </div>
+              );
+            })}
+            {legsWarn&&<span style={{fontSize:11,marginLeft:2}}>⚠️</span>}
+            <span style={{fontSize:12,color:"#444",fontFamily:"monospace",marginLeft:4}}>{open?"▲":"▼"}</span>
+          </div>
+        </button>
+        {open&&(
+          <div style={{padding:"0 16px 14px"}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:10}}>
+              {MUSCLE_GROUPS.map(mg=>{
+                const {count,sessions}=weekMuscleData[mg.id];
+                return(
+                  <div key={mg.id} style={{background:"#141414",border:"1px solid #1e1e1e",borderRadius:8,padding:"10px 12px"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:8}}>
+                      <span style={{fontSize:16}}>{mg.icon}</span>
+                      <span style={{fontSize:12,color:"#bbb",fontFamily:"monospace",fontStyle:"italic"}}>{mg.label}</span>
+                      <span style={{fontSize:11,fontFamily:"monospace",color:count>0?C.strengthLong:"#3a3a3a",marginLeft:"auto"}}>×{count}</span>
+                    </div>
+                    <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                      {sessions.length===0
+                        ?<span style={{fontSize:9,color:"#2a2a2a",fontFamily:"monospace"}}>not yet trained</span>
+                        :sessions.map(({date,s},i)=>(
+                          <div key={i} style={{background:s.done?`${C.strengthLong}22`:"transparent",border:`1px solid ${s.done?C.strengthLong:"#2a2a2a"}`,borderRadius:4,padding:"2px 7px",fontSize:9,fontFamily:"monospace",color:s.done?C.strengthLong:"#444"}}>
+                            {s.done?"✓ ":""}{date.toLocaleDateString("en-GB",{weekday:"short"})} · {getAct(s.type).short}
+                          </div>
+                        ))
+                      }
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{fontSize:10,color:"#444",fontFamily:"monospace"}}>
+              {allDone
+                ?<span style={{color:"#4CAF70"}}>✓ All 3 muscle groups covered this week</span>
+                :<>Remaining: {remaining.map(mg=>`${mg.icon} ${mg.label}`).join(" · ")}</>
+              }
+            </div>
+            {legsWarn&&(
+              <div style={{marginTop:8,display:"flex",alignItems:"center",gap:7,background:"#CC224412",border:"1px solid #CC224430",borderRadius:6,padding:"6px 10px"}}>
+                <span style={{fontSize:12}}>🦵</span>
+                <span style={{fontSize:10,color:"#CC2244",fontFamily:"monospace"}}>Train legs this week! You have done cardio but no leg strength yet.</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // CARDIO PANEL (collapsible)
+  // ─────────────────────────────────────────────────────────────────────────
+  const CardioPanel = ({weekRunSessions,weekBikeSessions,weekSpinSessions,stats,open,setOpen}) => {
+    const count = weekRunSessions.length+weekBikeSessions.length+weekSpinSessions.length;
+    return(
+      <div style={{background:"#0e0e0e",border:"1px solid #1a1a1a",borderRadius:10,marginBottom:18,overflow:"hidden"}}>
+        <button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"12px 16px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}
+          onClick={()=>setOpen(o=>!o)}>
+          <span style={{fontSize:9,letterSpacing:"0.16em",color:"#3a3a3a",fontFamily:"monospace",flex:1,textAlign:"left"}}>CARDIO — RUN · RIDE · SPIN THIS WEEK</span>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            {weekRunSessions.length>0&&(
+              <span style={{display:"flex",gap:4,alignItems:"center",fontFamily:"monospace",fontSize:9}}>
+                <span>🏃</span>
+                <span style={{color:C.run}}>{stats.totalRunKm>0?fmtKm(stats.totalRunKm):""}</span>
+                {stats.totalRunMins>0&&<span style={{color:"#555"}}>{fmtMins(stats.totalRunMins)}</span>}
+                <span style={{color:"#3a3a3a"}}>×{weekRunSessions.length}</span>
+              </span>
+            )}
+            {weekBikeSessions.length>0&&(
+              <span style={{display:"flex",gap:4,alignItems:"center",fontFamily:"monospace",fontSize:9}}>
+                <span>🚵</span>
+                <span style={{color:C.bike}}>{stats.totalBikeKm>0?fmtKm(stats.totalBikeKm):""}</span>
+                {stats.totalBikeMins>0&&<span style={{color:"#555"}}>{fmtMins(stats.totalBikeMins)}</span>}
+                <span style={{color:"#3a3a3a"}}>×{weekBikeSessions.length}</span>
+              </span>
+            )}
+            {weekSpinSessions.length>0&&(
+              <span style={{display:"flex",gap:4,alignItems:"center",fontFamily:"monospace",fontSize:9}}>
+                <span>🚴</span>
+                {stats.totalSpinMins>0&&<span style={{color:"#555"}}>{fmtMins(stats.totalSpinMins)}</span>}
+                <span style={{color:"#3a3a3a"}}>×{weekSpinSessions.length}</span>
+              </span>
+            )}
+            <span style={{fontSize:12,color:"#444",fontFamily:"monospace",marginLeft:2}}>{open?"▲":"▼"}</span>
+          </div>
+        </button>
+        {open&&(
+          <div style={{padding:"0 16px 14px"}}>
+            <div style={{display:"grid",gridTemplateColumns:[weekRunSessions.length>0?"1fr":"",weekBikeSessions.length>0?"1fr":"",weekSpinSessions.length>0?"1fr":""].filter(Boolean).join(" "),gap:12}}>
+
+              {/* ── Run ── */}
+              {weekRunSessions.length>0&&(
+                <div style={{background:"#141414",border:"1px solid #1e1e1e",borderRadius:8,padding:"10px 12px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+                    <span style={{fontSize:15}}>🏃</span>
+                    <span style={{fontSize:11,color:C.run,fontFamily:"monospace",fontStyle:"italic"}}>Running</span>
+                    <div style={{marginLeft:"auto",display:"flex",gap:10}}>
+                      {stats.totalRunKm>0&&<span style={{fontSize:11,fontFamily:"monospace",color:C.run}}>{fmtKm(stats.totalRunKm)}</span>}
+                      {stats.totalRunMins>0&&<span style={{fontSize:11,fontFamily:"monospace",color:"#555"}}>{fmtMins(stats.totalRunMins)}</span>}
+                    </div>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                    {weekRunSessions.map(({date,s},i)=>{
+                      const km=parseKm(s.runDistKm);
+                      const mins=parseMins(s.runTimeText||s.runTimeMins);
+                      const intensityPct={Easy:25,Moderate:50,Hard:75,Max:100}[s.intensity]||0;
+                      const barColor=INTENSITY_COLORS[s.intensity]||C.run;
+                      return(
+                        <div key={i}>
+                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                            <span style={{fontSize:9,color:"#555",fontFamily:"monospace"}}>{date.toLocaleDateString("en-GB",{weekday:"short",day:"numeric"})}</span>
+                            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                              {km>0&&<span style={{fontSize:9,fontFamily:"monospace",color:C.run}}>{fmtKm(km)}</span>}
+                              {mins>0&&<span style={{fontSize:9,fontFamily:"monospace",color:"#555"}}>{fmtMins(mins)}</span>}
+                              {km>0&&mins>0&&<span style={{fontSize:9,fontFamily:"monospace",color:"#3a3a3a"}}>{(mins/km).toFixed(1)}/km</span>}
+                              {s.intensity&&<span style={{fontSize:8,fontFamily:"monospace",color:barColor,background:`${barColor}18`,borderRadius:3,padding:"1px 5px"}}>{s.intensity}</span>}
+                            </div>
+                          </div>
+                          <div style={{height:3,background:"#1e1e1e",borderRadius:2,overflow:"hidden"}}>
+                            <div style={{height:"100%",width:`${intensityPct}%`,background:barColor,opacity:s.done?0.9:0.45,borderRadius:2,transition:"width 0.3s"}}/>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Ride ── */}
+              {weekBikeSessions.length>0&&(
+                <div style={{background:"#141414",border:"1px solid #1e1e1e",borderRadius:8,padding:"10px 12px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+                    <span style={{fontSize:15}}>🚵</span>
+                    <span style={{fontSize:11,color:C.bike,fontFamily:"monospace",fontStyle:"italic"}}>Riding</span>
+                    <div style={{marginLeft:"auto",display:"flex",gap:10}}>
+                      {stats.totalBikeKm>0&&<span style={{fontSize:11,fontFamily:"monospace",color:C.bike}}>{fmtKm(stats.totalBikeKm)}</span>}
+                      {stats.totalBikeMins>0&&<span style={{fontSize:11,fontFamily:"monospace",color:"#555"}}>{fmtMins(stats.totalBikeMins)}</span>}
+                    </div>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                    {weekBikeSessions.map(({date,s},i)=>{
+                      const km=parseKm(s.bikeDistKm);
+                      const mins=parseMins(s.bikeTimeText||s.bikeTimeMins);
+                      const intensityPct={Easy:25,Moderate:50,Hard:75,Max:100}[s.intensity]||0;
+                      const barColor=INTENSITY_COLORS[s.intensity]||C.bike;
+                      return(
+                        <div key={i}>
+                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                            <span style={{fontSize:9,color:"#555",fontFamily:"monospace"}}>{date.toLocaleDateString("en-GB",{weekday:"short",day:"numeric"})}</span>
+                            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                              {km>0&&<span style={{fontSize:9,fontFamily:"monospace",color:C.bike}}>{fmtKm(km)}</span>}
+                              {mins>0&&<span style={{fontSize:9,fontFamily:"monospace",color:"#555"}}>{fmtMins(mins)}</span>}
+                              {km>0&&mins>0&&<span style={{fontSize:9,fontFamily:"monospace",color:"#3a3a3a"}}>{(mins/km).toFixed(1)}/km</span>}
+                              {s.intensity&&<span style={{fontSize:8,fontFamily:"monospace",color:barColor,background:`${barColor}18`,borderRadius:3,padding:"1px 5px"}}>{s.intensity}</span>}
+                            </div>
+                          </div>
+                          <div style={{height:3,background:"#1e1e1e",borderRadius:2,overflow:"hidden"}}>
+                            <div style={{height:"100%",width:`${intensityPct}%`,background:barColor,opacity:s.done?0.9:0.45,borderRadius:2,transition:"width 0.3s"}}/>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Spin ── */}
+              {weekSpinSessions.length>0&&(
+                <div style={{background:"#141414",border:"1px solid #1e1e1e",borderRadius:8,padding:"10px 12px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+                    <span style={{fontSize:15}}>🚴</span>
+                    <span style={{fontSize:11,color:C.spin,fontFamily:"monospace",fontStyle:"italic"}}>Spin</span>
+                    {stats.totalSpinMins>0&&<span style={{fontSize:11,fontFamily:"monospace",color:"#555",marginLeft:"auto"}}>{fmtMins(stats.totalSpinMins)}</span>}
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                    {weekSpinSessions.map(({date,s},i)=>{
+                      const mins=parseMins(s.durationText||s.durationMins||s.duration);
+                      const intensityPct={Easy:25,Moderate:50,Hard:75,Max:100}[s.intensity]||0;
+                      const barColor=INTENSITY_COLORS[s.intensity]||C.spin;
+                      return(
+                        <div key={i}>
+                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                            <span style={{fontSize:9,color:"#555",fontFamily:"monospace"}}>{date.toLocaleDateString("en-GB",{weekday:"short",day:"numeric"})}</span>
+                            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                              {mins>0&&<span style={{fontSize:9,fontFamily:"monospace",color:"#666"}}>{fmtMins(mins)}</span>}
+                              {s.intensity&&<span style={{fontSize:8,fontFamily:"monospace",color:barColor,background:`${barColor}18`,borderRadius:3,padding:"1px 5px"}}>{s.intensity}</span>}
+                            </div>
+                          </div>
+                          <div style={{height:3,background:"#1e1e1e",borderRadius:2,overflow:"hidden"}}>
+                            <div style={{height:"100%",width:`${intensityPct}%`,background:barColor,opacity:s.done?0.9:0.45,borderRadius:2,transition:"width 0.3s"}}/>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SINGLE WEEK
+  // ─────────────────────────────────────────────────────────────────────────
+  const SingleWeek = () => {
+    const stats=weekStats(weekStart);
+    const isCurrentWeek=wKey(weekStart)===wKey(isoMonday(today));
+
+    const weekMuscleData = {};
+    MUSCLE_GROUPS.forEach(mg=>{ weekMuscleData[mg.id]={count:0,doneCount:0,sessions:[]}; });
+    for(let i=0;i<7;i++){
+      const dk=dKey(addDays(weekStart,i));
+      getSessions(dk).forEach(s=>{
+        if(s.type==="strength_long"||s.type==="strength_short"){
+          (s.muscles||[]).forEach(mg=>{
+            weekMuscleData[mg].count++;
+            if(s.done) weekMuscleData[mg].doneCount++;
+            weekMuscleData[mg].sessions.push({date:addDays(weekStart,i),s});
+          });
+        }
+      });
+    }
+
+    // cardio sessions for the week
+    const weekRunSessions=[], weekBikeSessions=[], weekSpinSessions=[];
+    for(let i=0;i<7;i++){
+      const dk=dKey(addDays(weekStart,i));
+      getSessions(dk).forEach(s=>{
+        if(s.done&&s.type==="run") weekRunSessions.push({date:addDays(weekStart,i),s});
+        if(s.done&&s.type==="bike") weekBikeSessions.push({date:addDays(weekStart,i),s});
+        if(s.done&&s.type==="spin") weekSpinSessions.push({date:addDays(weekStart,i),s});
+      });
+    }
+
+    return(
+      <div>
+        {/* Nav */}
+        <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:18}}>
+          <button style={BT.nav} onClick={()=>setWeekStart(addDays(weekStart,-7))}>‹</button>
+          <div>
+            <div style={{fontSize:14,color:"#999",fontStyle:"italic"}}>{fmtRange(weekStart)}</div>
+            {isCurrentWeek&&<span style={CH.week}>THIS WEEK</span>}
+          </div>
+          <button style={BT.nav} onClick={()=>setWeekStart(addDays(weekStart,7))}>›</button>
+        </div>
+
+        {/* ── Week summary bar ── */}
+        {(()=>{
+          const totalDone=(stats.done.strength||0)+(stats.done.spin||0)+(stats.done.bodypump||0);
+          const allMGDone=MUSCLE_GROUPS.every(mg=>weekMuscleData[mg.id].doneCount>0);
+          const missingStr=(stats.done.strength||0)<3;
+          const missingSpin=(stats.done.spin||0)<1;
+          const missingPump=(stats.done.bodypump||0)<1;
+          const missing=[];
+          if(missingStr) missing.push(`Str ${stats.done.strength||0}/3`);
+          if(missingSpin) missing.push("Spin 0/1");
+          if(missingPump) missing.push("Pump 0/1");
+          if(!allMGDone) missing.push(MUSCLE_GROUPS.filter(mg=>weekMuscleData[mg.id].doneCount===0).map(mg=>mg.icon).join("")+" legs/back/chest");
+          const runKm=stats.totalRunKm, bikeKm=stats.totalBikeKm;
+          const prevStats=weekStats(addDays(weekStart,-7));
+          const runPct=prevStats.totalRunKm>0?((runKm-prevStats.totalRunKm)/prevStats.totalRunKm*100):null;
+          const bikePct=prevStats.totalBikeKm>0?((bikeKm-prevStats.totalBikeKm)/prevStats.totalBikeKm*100):null;
+          const mileageWarn=(runPct!==null&&runPct>10)||(bikePct!==null&&bikePct>10);
+          const allGood=missing.length===0&&!mileageWarn;
+          return(
+            <div style={{background:allGood?"#0a1a0a":"#0e0e0e",border:`1px solid ${allGood?"#4CAF7022":"#1e1e1e"}`,borderRadius:10,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
+                    {allGood&&<span style={{fontSize:11,color:"#4CAF70",fontFamily:"monospace"}}>✓ Week on track</span>}
+                    {missing.map((m,i)=>(
+                      <span key={i} style={{fontSize:9,fontFamily:"monospace",color:"#E06030",background:"#E0603018",border:"1px solid #E0603030",borderRadius:4,padding:"2px 7px"}}>missing: {m}</span>
+                    ))}
+                    {stats.consWarn&&<span style={{fontSize:9,fontFamily:"monospace",color:"#E06030",background:"#E0603018",border:"1px solid #E0603030",borderRadius:4,padding:"2px 7px"}}>⚠ spread effort next week</span>}
+                    {stats.hiDays>=4&&<span style={{fontSize:9,fontFamily:"monospace",color:"#CC2244",background:"#CC224418",border:"1px solid #CC224430",borderRadius:4,padding:"2px 7px"}}>🚨 hard day limit</span>}
+                    {mileageWarn&&<span style={{fontSize:9,fontFamily:"monospace",color:"#CC2244",background:"#CC224418",border:"1px solid #CC224430",borderRadius:4,padding:"2px 7px"}}>⚠ mileage &gt;10%</span>}
+                  </div>
+              </div>
+              <div style={{display:"flex",gap:10,flexShrink:0,alignItems:"center"}}>
+                {totalDone>0&&<span style={{fontSize:9,fontFamily:"monospace",color:"#555"}}>{totalDone} sessions done</span>}
+                {runKm>0&&<span style={{fontSize:9,fontFamily:"monospace",color:C.run}}>🏃{fmtKm(runKm)}</span>}
+                {bikeKm>0&&<span style={{fontSize:9,fontFamily:"monospace",color:C.bike}}>🚵{fmtKm(bikeKm)}</span>}
+                {stats.totalSpinMins>0&&<span style={{fontSize:9,fontFamily:"monospace",color:C.spin}}>🚴{fmtMins(stats.totalSpinMins)}</span>}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Targets */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:9,marginBottom:18}}>
+          {Object.entries(WEEKLY_TARGETS).map(([type,{target,label,icon,color}])=>{
+            const d=stats.done[type]||0, p=stats.counts[type]||0;
+            const allMusclesDone = type==="strength"
+              ? MUSCLE_GROUPS.every(mg=>weekMuscleData[mg.id].doneCount>0)
+              : true;
+            const isComplete = d>=target && allMusclesDone;
+            return(
+              <div key={type} style={CD.target}>
+                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                  <span style={{fontSize:15}}>{icon}</span>
+                  <span style={{fontSize:10,color:"#555",fontFamily:"monospace",flex:1}}>{label}</span>
+                  <span style={{fontSize:13,fontFamily:"monospace",fontWeight:"bold",color}}>{d}/{target}</span>
+                </div>
+                <div style={{height:3,background:"#1a1a1a",borderRadius:2,position:"relative",overflow:"hidden",marginBottom:4}}>
+                  <div style={{position:"absolute",inset:0,width:`${Math.min(p/target*100,100)}%`,background:`${color}30`,borderRadius:2}}/>
+                  <div style={{position:"absolute",inset:0,width:`${Math.min(d/target*100,100)}%`,background:color,borderRadius:2}}/>
+                </div>
+                {type==="strength"&&(
+                  <div style={{display:"flex",gap:4,marginBottom:2}}>
+                    {MUSCLE_GROUPS.map(mg=>{
+                      const dc=weekMuscleData[mg.id].doneCount;
+                      return(
+                        <div key={mg.id} style={{display:"flex",alignItems:"center",gap:2,background:dc>0?`${C.strengthLong}18`:"#111",border:`1px solid ${dc>0?C.strengthLong:"#222"}`,borderRadius:4,padding:"2px 5px"}}>
+                          <span style={{fontSize:9}}>{mg.icon}</span>
+                          <span style={{fontSize:8,fontFamily:"monospace",color:dc>0?C.strengthLong:"#333"}}>{dc>0?"✓":"—"}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {p>d&&!isComplete&&<div style={{fontSize:9,color:"#444",fontFamily:"monospace"}}>{p-d} planned</div>}
+                {isComplete&&<div style={{fontSize:9,color,fontFamily:"monospace"}}>✓ complete</div>}
+              </div>
+            );
+          })}
+          <div style={CD.target}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+              <span style={{fontSize:15}}>🌡️</span>
+              <span style={{fontSize:10,color:"#555",fontFamily:"monospace",flex:1}}>Hard days</span>
+              <span style={{fontSize:13,fontFamily:"monospace",fontWeight:"bold",color:stats.hiDays>=4?"#CC2244":"#F09A50"}}>{stats.hiDays}/4</span>
+            </div>
+            <div style={{height:3,background:"#1a1a1a",borderRadius:2,position:"relative",overflow:"hidden",marginBottom:4}}>
+              <div style={{position:"absolute",inset:0,width:`${Math.min(stats.hiDays/4*100,100)}%`,background:stats.hiDays>=4?"#CC2244":"#F09A50",borderRadius:2}}/>
+            </div>
+            {stats.consWarn&&<div style={{fontSize:9,color:"#CC2244",fontFamily:"monospace"}}>⚠ 2+ consecutive hard days</div>}
+            {stats.hiDays>=4&&<div style={{fontSize:9,color:"#CC2244",fontFamily:"monospace",marginTop:stats.consWarn?2:0}}>🚨 Limit reached — rest now</div>}
+          </div>
+        </div>
+
+        {/* Muscle groups — collapsible */}
+        <StrengthPanel weekMuscleData={weekMuscleData} weekRunSessions={weekRunSessions} weekBikeSessions={weekBikeSessions} weekSpinSessions={weekSpinSessions} open={strengthOpen} setOpen={setStrengthOpen} />
+
+        {/* ── Cardio stats panel ── */}
+        {(weekRunSessions.length>0||weekBikeSessions.length>0||weekSpinSessions.length>0)&&(
+          <CardioPanel weekRunSessions={weekRunSessions} weekBikeSessions={weekBikeSessions} weekSpinSessions={weekSpinSessions} stats={stats} open={cardioOpen} setOpen={setCardioOpen} />
+        )}
+        {/* Day grid */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:7,marginBottom:6}}>
+          {DAYS_S.map(d=><div key={d} style={{fontSize:10,color:"#2e2e2e",fontFamily:"monospace",letterSpacing:"0.08em",textAlign:"center"}}>{d}</div>)}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:7}}>
+          {Array.from({length:7},(_,i)=><DayCell key={i} date={addDays(weekStart,i)} compact={false}/>)}
+        </div>
+      </div>
+    );
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // MULTI WEEK
+  // ─────────────────────────────────────────────────────────────────────────
+  const MultiWeek = () => {
+    const weeks=Array.from({length:4},(_,i)=>isoMonday(addDays(weekStart,(i-1)*7)));
+    return(
+      <div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+          <button style={BT.nav} onClick={()=>setWeekStart(addDays(weekStart,-7))}>‹ earlier</button>
+          <span style={{fontSize:11,color:"#3a3a3a",fontFamily:"monospace",letterSpacing:"0.12em"}}>4-WEEK OVERVIEW</span>
+          <button style={BT.nav} onClick={()=>setWeekStart(addDays(weekStart,7))}>later ›</button>
+        </div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:"4px 12px",marginBottom:14}}>
+          {["strength_long","strength_short","bodypump","spin","bike","run","walk"].map(id=>{ const a=getAct(id); return (
+            <div key={a.id} style={{display:"flex",alignItems:"center",gap:4}}>
+              <div style={{width:8,height:8,borderRadius:2,background:a.color}}/>
+              <span style={{fontSize:9,color:"#444",fontFamily:"monospace"}}>{a.short}</span>
+            </div>
+          );})}
+        </div>
+        {weeks.map(monday=>{
+          const stats=weekStats(monday);
+          const isCurrent=wKey(monday)===wKey(isoMonday(today));
+
+          // compute per-week warnings
+          const mMuscles={legs:{doneCount:0}};
+          let mRunDone=false,mBikeDone=false,mSpinDone=false;
+          for(let i=0;i<7;i++){
+            getSessions(dKey(addDays(monday,i))).forEach(s=>{
+              if((s.type==="strength_long"||s.type==="strength_short")&&s.done)
+                (s.muscles||[]).forEach(mg=>{ if(mg==="legs") mMuscles.legs.doneCount++; });
+              if(s.done&&s.type==="run")  mRunDone=true;
+              if(s.done&&s.type==="bike") mBikeDone=true;
+              if(s.done&&s.type==="spin") mSpinDone=true;
+            });
+          }
+          const legsWarn=(mRunDone||mBikeDone||mSpinDone)&&mMuscles.legs.doneCount===0;
+          const warnings=[];
+          if(stats.consWarn)  warnings.push({key:"consec",tip:"2+ consecutive hard days",color:"#CC2244"});
+          if(stats.hiDays>=4) warnings.push({key:"hidays",tip:"Max hard days (4/4)",color:"#E06030"});
+          if(legsWarn)        warnings.push({key:"legs",tip:"No leg strength this week",color:"#CC2244"});
+
+          return(
+            <div key={wKey(monday)} style={{border:`1px solid ${isCurrent?"#D4580A33":warnings.length>0?"#CC224428":"#161616"}`,borderRadius:12,marginBottom:10,padding:"13px 14px",background:"#0d0d0d"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
+                <span style={{fontSize:12,color:"#666",fontStyle:"italic",flex:1}}>{fmtRange(monday)}</span>
+                {isCurrent&&<span style={CH.week}>THIS WEEK</span>}
+                <div style={{display:"flex",flexWrap:"wrap",gap:8,alignItems:"center"}}>
+                  {Object.entries(WEEKLY_TARGETS).map(([type,{icon,target,color}])=>(
+                    <div key={type} style={{display:"flex",gap:3,alignItems:"center"}}>
+                      <span style={{fontSize:10}}>{icon}</span>
+                      <span style={{fontSize:10,fontFamily:"monospace",color:(stats.done[type]||0)>=target?color:"#333"}}>{stats.done[type]||0}/{target}</span>
+                    </div>
+                  ))}
+                  {stats.totalRunKm>0&&<span style={{fontSize:9,fontFamily:"monospace",color:C.run}}>🏃{fmtKm(stats.totalRunKm)}</span>}
+                  {stats.totalBikeKm>0&&<span style={{fontSize:9,fontFamily:"monospace",color:C.bike}}>🚵{fmtKm(stats.totalBikeKm)}</span>}
+                  {warnings.map(w=>(
+                    <span key={w.key} style={{fontSize:9,color:w.color,fontFamily:"monospace",background:w.color+"18",border:`1px solid ${w.color}33`,borderRadius:4,padding:"1px 6px"}}>⚠ {w.tip}</span>
+                  ))}
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6}}>
+                {Array.from({length:7},(_,i)=><DayCell key={i} date={addDays(monday,i)} compact={true}/>)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // STATS PAGE
+  // ─────────────────────────────────────────────────────────────────────────
+  const StatsPage = () => {
+    const [chartMode, setChartMode] = useState("weekly");
+    const [chartOffset, setChartOffset] = useState(0);
+
+    const weeks = allWeeksStats();
+    if (!weeks.length) return (
+      <div style={{textAlign:"center",padding:"60px 20px",color:"#333",fontFamily:"monospace",fontSize:12}}>
+        No training data yet. Start logging sessions in the tracker.
+      </div>
+    );
+
+    const maxMins = Math.max(...weeks.map(w => w.stats.totalMins), 1);
+
+    // ── per-week warnings (same logic as multi-week view) ──────────────────
+    const getWeekWarnings = (monday) => {
+      const mMuscles = {legs:{doneCount:0}};
+      let mRunDone=false, mBikeDone=false, mSpinDone=false;
+      const stats = weekStats(monday);
+      for (let i=0; i<7; i++) {
+        getSessions(dKey(addDays(monday,i))).forEach(s => {
+          if ((s.type==="strength_long"||s.type==="strength_short") && s.done)
+            (s.muscles||[]).forEach(mg => { if (mg==="legs") mMuscles.legs.doneCount++; });
+          if (s.done && s.type==="run")  mRunDone=true;
+          if (s.done && s.type==="bike") mBikeDone=true;
+          if (s.done && s.type==="spin") mSpinDone=true;
+        });
+      }
+      const legsWarn = (mRunDone||mBikeDone||mSpinDone) && mMuscles.legs.doneCount===0;
+      const w = [];
+      if (stats.consWarn)  w.push({key:"consec", tip:"2+ consecutive hard days",   color:"#CC2244"});
+      if (stats.hiDays>=4) w.push({key:"hidays", tip:"Max hard days reached (4/4)", color:"#CC2244"});
+      if (legsWarn)        w.push({key:"legs",   tip:"No leg strength this week",   color:"#E06030"});
+      return w;
+    };
+
+    // ── chart data helpers ─────────────────────────────────────────────────
+    const getDurMins = (s) => parseMins(s.durationText||s.durationMins||s.duration);
+
+    const sessionsInRange = (startDate, endDate) => {
+      const result = [];
+      Object.entries(data).forEach(([dk, sessions]) => {
+        const d = new Date(dk + "T12:00:00");
+        if (d >= startDate && d <= endDate) result.push(...sessions.filter(s=>s.done));
+      });
+      return result;
+    };
+
+    // compute chart period label and sessions based on mode + offset
+    const getChartPeriod = () => {
+      const now = new Date();
+      if (chartMode === "weekly") {
+        const mon = isoMonday(addDays(now, chartOffset * 7));
+        const sun = addDays(mon, 6);
+        return {
+          label: fmtRange(mon),
+          sessions: sessionsInRange(mon, sun),
+          prev: () => setChartOffset(o => o - 1),
+          next: () => setChartOffset(o => o + 1),
+          isPresent: chartOffset === 0,
+        };
+      }
+      if (chartMode === "monthly") {
+        const ref = new Date(now.getFullYear(), now.getMonth() + chartOffset, 1);
+        const start = new Date(ref.getFullYear(), ref.getMonth(), 1);
+        const end   = new Date(ref.getFullYear(), ref.getMonth() + 1, 0, 23, 59, 59);
+        return {
+          label: ref.toLocaleDateString("en-GB", {month:"long", year:"numeric"}),
+          sessions: sessionsInRange(start, end),
+          prev: () => setChartOffset(o => o - 1),
+          next: () => setChartOffset(o => o + 1),
+          isPresent: chartOffset === 0,
+        };
+      }
+      // yearly
+      const year = now.getFullYear() + chartOffset;
+      const start = new Date(year, 0, 1);
+      const end   = new Date(year, 11, 31, 23, 59, 59);
+      return {
+        label: String(year),
+        sessions: sessionsInRange(start, end),
+        prev: () => setChartOffset(o => o - 1),
+        next: () => setChartOffset(o => o + 1),
+        isPresent: chartOffset === 0,
+      };
+    };
+
+    const period = getChartPeriod();
+    const chartMaxMins = Math.max(
+      ...["strength_long","strength_short","bodypump","spin","bike","run","walk"].map(id =>
+        period.sessions.filter(s => s.type===id).reduce((acc,s) => acc+getDurMins(s), 0)
+      ), 1
+    );
+
+    return (
+      <div>
+        {/* ── Strength streak ── */}
+        {(()=>{
+          // A week qualifies if: 3+ completed strength sessions AND all 3 muscle groups done
+          // Build our own week list from today backwards — don't rely on allWeeksStats
+          // which only spans between first and last data entry dates.
+          const checkWeekQualifies = (monday) => {
+            const mg={legs:0,back:0,chest:0};
+            let strDone=0;
+            for(let i=0;i<7;i++){
+              getSessions(dKey(addDays(monday,i))).forEach(s=>{
+                if((s.type==="strength_long"||s.type==="strength_short")&&s.done){
+                  strDone++;
+                  (s.muscles||[]).forEach(m=>{ if(mg[m]!==undefined) mg[m]++; });
+                }
+              });
+            }
+            return strDone>=3 && mg.legs>0 && mg.back>0 && mg.chest>0;
+          };
+          // go back 52 weeks; optionally skip the current week
+          const _base = streakIncludeCurrent ? today : addDays(isoMonday(today),-1);
+          const allWeeks = Array.from({length:52},(_,i)=>isoMonday(addDays(_base,-i*7)));
+
+          let currentStreak = 0, bestStreak = 0, tempStreak = 0;
+          // best streak: chronological (oldest first)
+          for(let i=allWeeks.length-1;i>=0;i--){
+            if(checkWeekQualifies(allWeeks[i])){ tempStreak++; if(tempStreak>bestStreak) bestStreak=tempStreak; }
+            else tempStreak=0;
+          }
+          // current streak: newest first, break on first non-qualifying week
+          for(const monday of allWeeks){
+            if(checkWeekQualifies(monday)) currentStreak++;
+            else break;
+          }
+
+          const streakColor = currentStreak>=4?"#D4580A":currentStreak>=2?"#F09A50":"#3a3a3a";
+          const streakMsg = currentStreak===0
+            ? "Start your streak — hit 3 strength sessions covering legs, back and chest this week."
+            : currentStreak===1 ? "One week down. Keep showing up."
+            : currentStreak===2 ? "Two in a row. The habit is forming."
+            : currentStreak===3 ? "Three weeks consistent. This is becoming who you are."
+            : currentStreak<8  ? `${currentStreak} weeks without missing. Compounding now.`
+            : `${currentStreak} weeks. Elite consistency.`;
+
+          return(
+            <div style={{background:"#0d0d0d",border:`1px solid ${currentStreak>0?streakColor+"33":"#181818"}`,borderRadius:12,padding:"16px 20px",marginBottom:18}}>
+              <div style={{fontSize:9,letterSpacing:"0.18em",color:"#3a3a3a",fontFamily:"monospace",marginBottom:12}}>STRENGTH CONSISTENCY STREAK</div>
+              <div style={{display:"flex",alignItems:"flex-end",gap:20,flexWrap:"wrap"}}>
+                <div>
+                  <div style={{fontSize:48,fontWeight:"bold",color:streakColor,fontFamily:"monospace",lineHeight:1,marginBottom:4}}>
+                    {currentStreak}
+                  </div>
+                  <div style={{fontSize:9,color:"#3a3a3a",fontFamily:"monospace",letterSpacing:"0.1em"}}>CURRENT STREAK (WEEKS)</div>
+                </div>
+                {bestStreak>0&&(
+                  <div style={{paddingBottom:4}}>
+                    <div style={{fontSize:22,fontWeight:"bold",color:"#2a2a2a",fontFamily:"monospace",lineHeight:1,marginBottom:4}}>{bestStreak}</div>
+                    <div style={{fontSize:9,color:"#2a2a2a",fontFamily:"monospace",letterSpacing:"0.1em"}}>BEST EVER</div>
+                  </div>
+                )}
+                <div style={{flex:1,paddingBottom:4}}>
+                  <div style={{fontSize:11,color:currentStreak>0?streakColor:"#444",fontFamily:"monospace",fontStyle:"italic",lineHeight:1.5}}>{streakMsg}</div>
+                  <div style={{fontSize:9,color:"#2a2a2a",fontFamily:"monospace",marginTop:6}}>Counts weeks with 3+ completed strength sessions covering all 3 muscle groups</div>
+                </div>
+              </div>
+              {currentStreak>0&&(
+                <div style={{marginTop:12,display:"flex",gap:4}}>
+                  {Array.from({length:Math.max(currentStreak,8)},(_,i)=>(
+                    <div key={i} style={{flex:1,height:4,borderRadius:2,background:i<currentStreak?streakColor:"#141414",maxWidth:32}}/>
+                  ))}
+                </div>
+              )}
+              {/* Include current week toggle */}
+              <div style={{marginTop:12,display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setStreakIncludeCurrent(v=>!v)}>
+                <div style={{width:14,height:14,borderRadius:3,border:`1px solid ${streakIncludeCurrent?"#D4580A":"#333"}`,background:streakIncludeCurrent?"#D4580A":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  {streakIncludeCurrent&&<span style={{fontSize:9,color:"#000",lineHeight:1}}>✓</span>}
+                </div>
+                <span style={{fontSize:9,color:"#444",fontFamily:"monospace"}}>Include current week in streak</span>
+              </div>
+            </div>
+          );
+        })()}
+
+                {/* ── Weekly breakdown table ── */}
+        <div style={{background:"#0d0d0d",border:"1px solid #181818",borderRadius:12,overflow:"hidden",marginBottom:18}}>
+          <div style={{padding:"12px 16px 9px",borderBottom:"1px solid #161616"}}>
+            <div style={{fontSize:9,letterSpacing:"0.18em",color:"#3a3a3a",fontFamily:"monospace"}}>WEEKLY BREAKDOWN</div>
+          </div>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,fontFamily:"monospace"}}>
+              <thead>
+                <tr style={{borderBottom:"1px solid #161616"}}>
+                  {["Week","Time","⚡ Str","🚴","🏋️","🏃 km/time","🚵 km/time","Muscles",""].map(h => (
+                    <th key={h} style={{padding:"7px 10px",textAlign:"left",fontSize:9,color:"#3a3a3a",letterSpacing:"0.07em",fontWeight:"normal",whiteSpace:"nowrap"}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {weeks.map(({monday, stats}) => {
+                  const isCurrent = wKey(monday)===wKey(isoMonday(today));
+                  const mgDone = MUSCLE_GROUPS.filter(mg => (stats.muscles[mg.id]||0) > 0);
+                  const warnings = getWeekWarnings(monday);
+                  return (
+                    <tr key={wKey(monday)}
+                      style={{borderBottom:"1px solid #111",background:isCurrent?"#121212":"transparent",cursor:"pointer"}}
+                      onClick={()=>{ setWeekStart(monday); setPage("tracker"); setViewMode("single"); }}>
+                      <td style={{padding:"7px 10px",whiteSpace:"nowrap"}}>
+                        <div style={{color:isCurrent?"#D4580A":"#777",fontSize:10}}>{fmtRange(monday)}</div>
+                        {isCurrent&&<div style={{fontSize:7,color:"#D4580A"}}>← this week</div>}
+                      </td>
+                      <td style={{padding:"7px 10px"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:5}}>
+                          <div style={{width:36,height:3,background:"#1a1a1a",borderRadius:2,overflow:"hidden"}}>
+                            <div style={{height:"100%",width:`${Math.min(stats.totalMins/maxMins*100,100)}%`,background:C.strengthLong,borderRadius:2}}/>
+                          </div>
+                          <span style={{color:"#777",fontSize:10}}>{fmtMins(stats.totalMins)}</span>
+                        </div>
+                      </td>
+                      <TdCount done={stats.done.strength} planned={stats.counts.strength} target={3} color={C.strengthLong}/>
+                      <TdCount done={stats.done.spin}     planned={stats.counts.spin}     target={1} color={C.spin}/>
+                      <TdCount done={stats.done.bodypump} planned={stats.counts.bodypump} target={1} color={C.bodypump}/>
+                      <td style={{padding:"7px 10px"}}>
+                        {stats.totalRunKm>0
+                          ? <span style={{color:C.run,fontSize:10}}>{fmtKm(stats.totalRunKm)}{stats.totalRunMins>0&&<span style={{color:"#444"}}> / {fmtMins(stats.totalRunMins)}</span>}</span>
+                          : <span style={{color:"#222"}}>—</span>}
+                      </td>
+                      <td style={{padding:"7px 10px"}}>
+                        {stats.totalBikeKm>0
+                          ? <span style={{color:C.bike,fontSize:10}}>{fmtKm(stats.totalBikeKm)}{stats.totalBikeMins>0&&<span style={{color:"#444"}}> / {fmtMins(stats.totalBikeMins)}</span>}</span>
+                          : <span style={{color:"#222"}}>—</span>}
+                      </td>
+                      <td style={{padding:"7px 10px"}}>
+                        {mgDone.length>0
+                          ? <div style={{display:"flex",gap:3}}>{mgDone.map(mg=><span key={mg.id} style={{fontSize:9,background:`${C.strengthLong}18`,color:C.strengthLong,borderRadius:3,padding:"1px 5px"}}>{mg.icon}</span>)}</div>
+                          : <span style={{color:"#222"}}>—</span>}
+                      </td>
+                      <td style={{padding:"7px 10px",whiteSpace:"nowrap"}}>
+                        <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                          {warnings.map(w=>(
+                            <span key={w.key} title={w.tip} style={{fontSize:13,cursor:"default",lineHeight:1}} title={w.tip}>⚠️</span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ── Deload detector ── */}
+        {(()=>{
+          if(weeks.length<2) return null;
+          // look at last 8 weeks of run+bike km
+          const recent=[...weeks].slice(0,8).reverse(); // oldest first
+          const withMileage=recent.filter(w=>w.stats.totalRunKm>0||w.stats.totalBikeKm>0);
+          if(withMileage.length<2) return null;
+
+          // find consecutive build weeks (each >= prev)
+          let buildStreak=0;
+          for(let i=1;i<withMileage.length;i++){
+            const cur=withMileage[i].stats.totalRunKm+withMileage[i].stats.totalBikeKm;
+            const prev=withMileage[i-1].stats.totalRunKm+withMileage[i-1].stats.totalBikeKm;
+            if(cur>=prev*0.95) buildStreak++; else buildStreak=0;
+          }
+
+          // last deload: week where total volume dropped >20% from prior
+          let lastDeloadWeeksAgo=null;
+          const rev=[...weeks]; // newest first
+          for(let i=1;i<rev.length;i++){
+            const cur=rev[i].stats.totalRunKm+rev[i].stats.totalBikeKm;
+            const prev2=rev[i-1].stats.totalRunKm+rev[i-1].stats.totalBikeKm;
+            if(prev2>0&&cur<prev2*0.8){ lastDeloadWeeksAgo=i; break; }
+          }
+
+          const suggestDeload=buildStreak>=3;
+          const overdueDeload=lastDeloadWeeksAgo===null||lastDeloadWeeksAgo>4;
+
+          if(!suggestDeload&&!overdueDeload) return null;
+          return(
+            <div style={{background:"#0d0d0d",border:`1px solid ${suggestDeload?"#E0603033":"#1e1e1e"}`,borderRadius:12,padding:"14px 16px",marginBottom:18}}>
+              <div style={{fontSize:9,letterSpacing:"0.18em",color:"#3a3a3a",fontFamily:"monospace",marginBottom:10}}>DELOAD DETECTION</div>
+              {suggestDeload&&(
+                <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:overdueDeload?10:0}}>
+                  <span style={{fontSize:16}}>📉</span>
+                  <div>
+                    <div style={{fontSize:11,color:"#E06030",fontFamily:"monospace",marginBottom:3}}>
+                      {buildStreak} consecutive build weeks — consider a deload
+                    </div>
+                    <div style={{fontSize:10,color:"#555",fontFamily:"monospace"}}>
+                      Drop run/ride volume by 20–30% for one week before continuing to build. This lets your tendons and bones catch up with your fitness.
+                    </div>
+                  </div>
+                </div>
+              )}
+              {overdueDeload&&(
+                <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                  <span style={{fontSize:16}}>🗓️</span>
+                  <div>
+                    <div style={{fontSize:11,color:"#E06030",fontFamily:"monospace",marginBottom:3}}>
+                      {lastDeloadWeeksAgo===null?"No deload week detected in your data":"Last deload was "+lastDeloadWeeksAgo+" weeks ago"} — overdue
+                    </div>
+                    <div style={{fontSize:10,color:"#555",fontFamily:"monospace"}}>
+                      Aim for a planned easy week every 4th week. Reduce volume not intensity — keep sessions shorter but maintain quality.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* ── Mileage tracker ── */}
+        {weeks.some(w=>w.stats.totalRunKm>0||w.stats.totalBikeKm>0)&&(
+          <div style={{background:"#0d0d0d",border:"1px solid #181818",borderRadius:12,overflow:"hidden",marginBottom:18}}>
+            <div style={{padding:"12px 16px 9px",borderBottom:"1px solid #161616"}}>
+              <div style={{fontSize:9,letterSpacing:"0.18em",color:"#3a3a3a",fontFamily:"monospace"}}>MILEAGE — RUN & RIDE PROGRESSION</div>
+            </div>
+            <div style={{padding:"12px 16px"}}>
+              {/* Column headers */}
+              <div style={{display:"grid",gridTemplateColumns:"140px 1fr 70px 70px 60px",gap:"0 8px",marginBottom:6,alignItems:"center"}}>
+                <span style={{fontSize:8,color:"#2a2a2a",fontFamily:"monospace",letterSpacing:"0.1em"}}>WEEK</span>
+                <span style={{fontSize:8,color:"#2a2a2a",fontFamily:"monospace",letterSpacing:"0.1em"}}>VOLUME</span>
+                <span style={{fontSize:8,color:"#2a2a2a",fontFamily:"monospace",letterSpacing:"0.1em",textAlign:"right"}}>KM</span>
+                <span style={{fontSize:8,color:"#2a2a2a",fontFamily:"monospace",letterSpacing:"0.1em",textAlign:"right"}}>TIME</span>
+                <span style={{fontSize:8,color:"#2a2a2a",fontFamily:"monospace",letterSpacing:"0.1em",textAlign:"right"}}>Δ</span>
+              </div>
+
+              {/* Run rows */}
+              {weeks.some(w=>w.stats.totalRunKm>0)&&(
+                <div style={{marginBottom:14}}>
+                  <div style={{fontSize:9,color:C.run,fontFamily:"monospace",letterSpacing:"0.1em",marginBottom:6,display:"flex",alignItems:"center",gap:5}}>
+                    🏃 RUN
+                  </div>
+                  {(()=>{
+                    const runWeeks=[...weeks].reverse().filter(w=>w.stats.totalRunKm>0||w.stats.totalBikeKm>0);
+                    const maxKm=Math.max(...weeks.map(w=>w.stats.totalRunKm),0.1);
+                    return [...weeks].reverse().map(({monday,stats},idx,arr)=>{
+                      const km=stats.totalRunKm;
+                      const mins=stats.totalRunMins;
+                      if(km===0&&(idx===0||arr[idx-1].stats.totalRunKm===0)) return null;
+                      const prevKm=idx>0?arr[idx-1].stats.totalRunKm:null;
+                      const pct=prevKm>0?((km-prevKm)/prevKm*100):null;
+                      const over10=pct!==null&&pct>10;
+                      const within10=pct!==null&&pct>=-10&&pct<=10;
+                      const bigDrop=pct!==null&&pct<-10;
+                      const isCur=wKey(monday)===wKey(isoMonday(today));
+                      const barW=km/maxKm*100;
+                      return(
+                        <div key={wKey(monday)} style={{display:"grid",gridTemplateColumns:"140px 1fr 70px 70px 60px",gap:"0 8px",marginBottom:6,alignItems:"center"}}>
+                          <span style={{fontSize:9,fontFamily:"monospace",color:isCur?"#D4580A":"#555",whiteSpace:"nowrap"}}>{fmtRange(monday)}</span>
+                          <div style={{height:6,background:"#141414",borderRadius:3,overflow:"hidden",position:"relative"}}>
+                            <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${barW}%`,background:over10?"#CC2244":C.run,borderRadius:3,transition:"width 0.3s",opacity:km>0?1:0.2}}/>
+                            {prevKm>0&&(
+                              <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${prevKm/maxKm*100}%`,borderRight:`1px dashed ${over10?"#CC224488":"#3A78D455"}`,pointerEvents:"none"}}/>
+                            )}
+                          </div>
+                          <span style={{fontSize:9,fontFamily:"monospace",color:km>0?C.run:"#2a2a2a",textAlign:"right"}}>{km>0?fmtKm(km):"—"}</span>
+                          <span style={{fontSize:9,fontFamily:"monospace",color:"#555",textAlign:"right"}}>{mins>0?fmtMins(mins):"—"}</span>
+                          <span style={{fontSize:9,fontFamily:"monospace",textAlign:"right",color:over10?"#CC2244":within10?"#4CAF70":bigDrop?"#3a3a3a":"#2a2a2a"}}>
+                            {pct===null?"—":over10?`⚠ +${pct.toFixed(0)}%`:within10?`✓ ${pct>=0?"+":""}${pct.toFixed(0)}%`:`${pct.toFixed(0)}%`}
+                          </span>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              )}
+
+              {/* Bike rows */}
+              {weeks.some(w=>w.stats.totalBikeKm>0)&&(
+                <div>
+                  <div style={{fontSize:9,color:C.bike,fontFamily:"monospace",letterSpacing:"0.1em",marginBottom:6}}>
+                    🚵 RIDE
+                  </div>
+                  {(()=>{
+                    const maxKm=Math.max(...weeks.map(w=>w.stats.totalBikeKm),0.1);
+                    return [...weeks].reverse().map(({monday,stats},idx,arr)=>{
+                      const km=stats.totalBikeKm;
+                      const mins=stats.totalBikeMins;
+                      if(km===0&&(idx===0||arr[idx-1].stats.totalBikeKm===0)) return null;
+                      const prevKm=idx>0?arr[idx-1].stats.totalBikeKm:null;
+                      const pct=prevKm>0?((km-prevKm)/prevKm*100):null;
+                      const over10=pct!==null&&pct>10;
+                      const within10=pct!==null&&pct>=-10&&pct<=10;
+                      const bigDrop=pct!==null&&pct<-10;
+                      const isCur=wKey(monday)===wKey(isoMonday(today));
+                      const barW=km/maxKm*100;
+                      return(
+                        <div key={wKey(monday)} style={{display:"grid",gridTemplateColumns:"140px 1fr 70px 70px 60px",gap:"0 8px",marginBottom:6,alignItems:"center"}}>
+                          <span style={{fontSize:9,fontFamily:"monospace",color:isCur?"#D4580A":"#555",whiteSpace:"nowrap"}}>{fmtRange(monday)}</span>
+                          <div style={{height:6,background:"#141414",borderRadius:3,overflow:"hidden",position:"relative"}}>
+                            <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${barW}%`,background:over10?"#CC2244":C.bike,borderRadius:3,transition:"width 0.3s",opacity:km>0?1:0.2}}/>
+                            {prevKm>0&&(
+                              <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${prevKm/maxKm*100}%`,borderRight:`1px dashed ${over10?"#CC224488":"#9B6FD455"}`,pointerEvents:"none"}}/>
+                            )}
+                          </div>
+                          <span style={{fontSize:9,fontFamily:"monospace",color:km>0?C.bike:"#2a2a2a",textAlign:"right"}}>{km>0?fmtKm(km):"—"}</span>
+                          <span style={{fontSize:9,fontFamily:"monospace",color:"#555",textAlign:"right"}}>{mins>0?fmtMins(mins):"—"}</span>
+                          <span style={{fontSize:9,fontFamily:"monospace",textAlign:"right",color:over10?"#CC2244":within10?"#4CAF70":bigDrop?"#3a3a3a":"#2a2a2a"}}>
+                            {pct===null?"—":over10?`⚠ +${pct.toFixed(0)}%`:within10?`✓ ${pct>=0?"+":""}${pct.toFixed(0)}%`:`${pct.toFixed(0)}%`}
+                          </span>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              )}
+
+              {/* Legend */}
+              <div style={{marginTop:10,display:"flex",gap:14,flexWrap:"wrap"}}>
+                <div style={{display:"flex",alignItems:"center",gap:5,fontSize:9,color:"#3a3a3a",fontFamily:"monospace"}}>
+                  <div style={{width:14,height:2,borderRight:"1px dashed #666"}}/>
+                  prev week
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:5,fontSize:9,color:"#CC2244",fontFamily:"monospace"}}>
+                  <span>⚠</span> &gt;10% increase — injury risk
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:5,fontSize:9,color:"#4CAF70",fontFamily:"monospace"}}>
+                  ✓ within ±10% — on track
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:5,fontSize:9,color:"#3a3a3a",fontFamily:"monospace"}}>
+                  &gt;10% drop — shown in grey
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+                {/* ── Time by activity — navigable ── */}
+        <div style={{background:"#0d0d0d",border:"1px solid #181818",borderRadius:12,padding:"14px 16px"}}>
+          {/* Header row */}
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+            <div style={{fontSize:9,letterSpacing:"0.18em",color:"#3a3a3a",fontFamily:"monospace",flex:1}}>TIME BY ACTIVITY</div>
+            {/* Mode toggle */}
+            <div style={{display:"flex",background:"#111",border:"1px solid #1e1e1e",borderRadius:7,overflow:"hidden"}}>
+              {["weekly","monthly","yearly"].map(m => (
+                <button key={m} style={{background:chartMode===m?"#1e1e1e":"transparent",border:"none",color:chartMode===m?"#D4580A":"#3a3a3a",padding:"5px 11px",cursor:"pointer",fontSize:10,fontFamily:"monospace",letterSpacing:"0.05em"}}
+                  onClick={()=>{ setChartMode(m); setChartOffset(0); }}>
+                  {m.charAt(0).toUpperCase()+m.slice(1)}
+                </button>
+              ))}
+            </div>
+            {/* Nav */}
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <button style={{...BT.nav,padding:"4px 10px",fontSize:12}} onClick={period.prev}>‹</button>
+              <span style={{fontSize:11,color:"#888",fontFamily:"monospace",fontStyle:"italic",minWidth:130,textAlign:"center"}}>{period.label}</span>
+              <button style={{...BT.nav,padding:"4px 10px",fontSize:12}} onClick={period.next}>›</button>
+            </div>
+          </div>
+
+          {/* Bars */}
+          {["strength_long","strength_short","bodypump","spin","bike","run","walk"].map(id => { const a = getAct(id);
+            const mins = period.sessions.filter(s=>s.type===a.id).reduce((acc,s)=>acc+getDurMins(s),0);
+            if (!mins) return null;
+            return (
+              <div key={a.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                <span style={{fontSize:12,width:18}}>{a.icon}</span>
+                <span style={{fontSize:10,fontFamily:"monospace",color:"#555",width:56,flexShrink:0}}>{a.short}</span>
+                <div style={{flex:1,height:5,background:"#141414",borderRadius:3,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${mins/chartMaxMins*100}%`,background:a.color,borderRadius:3,transition:"width 0.35s"}}/>
+                </div>
+                <span style={{fontSize:10,fontFamily:"monospace",color:a.color,width:40,textAlign:"right",flexShrink:0}}>{fmtMins(mins)}</span>
+              </div>
+            );
+          })}
+          {["strength_long","strength_short","bodypump","spin","bike","run","walk"].every(id =>
+            period.sessions.filter(s=>s.type===id).reduce((acc,s)=>acc+getDurMins(s),0) === 0
+          ) && (
+            <div style={{textAlign:"center",padding:"20px 0",color:"#2a2a2a",fontFamily:"monospace",fontSize:11}}>No data for this period</div>
+          )}
+        </div>
+      </div>
+    );
+  };
+  // ─────────────────────────────────────────────────────────────────────────
+  // INSIGHTS PAGE
+  // ─────────────────────────────────────────────────────────────────────────
+  const InsightsPage = () => {
+    const [noteSearch, setNoteSearch] = useState("");
+    const allSessions = Object.entries(data).flatMap(([dk,ss])=>ss.map(s=>({...s,_dk:dk})));
+    const doneSessions = allSessions.filter(s=>s.done);
+
+    // ── Body feedback: fatigue trends ──────────────────────────────────────
+    const recentWithFatigue = doneSessions
+      .filter(s=>s.fatigue_pre||s.fatigue_post)
+      .sort((a,b)=>b._dk.localeCompare(a._dk))
+      .slice(0,10);
+    const FATIGUE_SCORE = {Fresh:1,Normal:2,Tired:3,Exhausted:4};
+    const preScores  = recentWithFatigue.filter(s=>s.fatigue_pre).map(s=>FATIGUE_SCORE[s.fatigue_pre]);
+    const postScores = recentWithFatigue.filter(s=>s.fatigue_post).map(s=>FATIGUE_SCORE[s.fatigue_post]);
+    const avgPre  = preScores.length  ? preScores.reduce((a,b)=>a+b,0)/preScores.length   : null;
+    const avgPost = postScores.length ? postScores.reduce((a,b)=>a+b,0)/postScores.length : null;
+    const tiredStreak = (()=>{
+      let streak=0;
+      for(const s of doneSessions.sort((a,b)=>b._dk.localeCompare(a._dk))){
+        if(s.fatigue_pre==="Tired"||s.fatigue_pre==="Exhausted") streak++;
+        else break;
+      }
+      return streak;
+    })();
+
+    // ── Notes search ──────────────────────────────────────────────────────
+    const noteResults = noteSearch.trim().length>=2
+      ? allSessions
+          .filter(s=>s.notes&&s.notes.toLowerCase().includes(noteSearch.toLowerCase()))
+          .sort((a,b)=>b._dk.localeCompare(a._dk))
+      : [];
+
+    // ── Projected mileage curve ───────────────────────────────────────────
+    const recentRunWeeks = (() => {
+      const ws = [];
+      for(let i=0;i<8;i++){
+        const mon = isoMonday(addDays(today, -i*7));
+        const st  = weekStats(mon);
+        if(st.totalRunKm>0) ws.push({monday:mon, km:st.totalRunKm});
+      }
+      return ws.reverse();
+    })();
+    const latestRunKm = recentRunWeeks.length ? recentRunWeeks[recentRunWeeks.length-1].km : 0;
+    const buildWithDeload = (baseKm) => {
+      const weeks = [];
+      let km = baseKm;
+      for(let i=1;i<=8;i++){
+        if(i===4){ km = +(km*0.75).toFixed(1); weeks.push({week:i,max:km,deload:true}); }
+        else { km = +(km*1.1).toFixed(1); weeks.push({week:i,max:km,deload:false}); }
+      }
+      return weeks;
+    };
+    const projectedRun = latestRunKm>0 ? buildWithDeload(latestRunKm) : [];
+    const recentBikeWeeks = (() => {
+      const ws = [];
+      for(let i=0;i<8;i++){
+        const mon = isoMonday(addDays(today, -i*7));
+        const st  = weekStats(mon);
+        if(st.totalBikeKm>0) ws.push({monday:mon, km:st.totalBikeKm});
+      }
+      return ws.reverse();
+    })();
+    const latestBikeKm = recentBikeWeeks.length ? recentBikeWeeks[recentBikeWeeks.length-1].km : 0;
+    const projectedBike = latestBikeKm>0 ? buildWithDeload(latestBikeKm) : [];
+    const projMaxKm = Math.max(...projectedRun.map(p=>p.max), ...projectedBike.map(p=>p.max), latestRunKm, latestBikeKm, 1);
+
+    const FATIGUE_LABEL = {1:"Fresh",2:"Normal",3:"Tired",4:"Exhausted"};
+    const FATIGUE_COL   = {1:"#4CAF70",2:"#7BC47F",3:"#F09A50",4:"#CC2244"};
+
+    return (
+      <div>
+        {/* WIP banner */}
+        <div style={{background:"#0f0f0f",border:"1px solid #D4580A33",borderRadius:10,padding:"10px 16px",marginBottom:20,display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:16}}>🚧</span>
+          <div>
+            <div style={{fontSize:11,color:"#D4580A",fontFamily:"monospace",fontWeight:"bold"}}>WORK IN PROGRESS</div>
+            <div style={{fontSize:10,color:"#444",fontFamily:"monospace"}}>These insights are experimental — more features arriving here over time.</div>
+          </div>
+        </div>
+
+        {/* ── Body feedback ── */}
+        <div style={{background:"#0d0d0d",border:"1px solid #181818",borderRadius:12,padding:"14px 16px",marginBottom:18}}>
+          <div style={{fontSize:9,letterSpacing:"0.18em",color:"#3a3a3a",fontFamily:"monospace",marginBottom:12}}>BODY FEEDBACK LOOP</div>
+          {recentWithFatigue.length===0?(
+            <div style={{color:"#2a2a2a",fontFamily:"monospace",fontSize:11}}>No fatigue data yet. Start logging how you feel before and after sessions.</div>
+          ):(
+            <>
+              {tiredStreak>=3&&(
+                <div style={{background:"#CC224412",border:"1px solid #CC224430",borderRadius:7,padding:"9px 12px",marginBottom:12,display:"flex",gap:8,alignItems:"center"}}>
+                  <span style={{fontSize:14}}>😓</span>
+                  <span style={{fontSize:10,color:"#CC2244",fontFamily:"monospace"}}>{tiredStreak} sessions in a row starting Tired/Exhausted — consider a rest day or easy session.</span>
+                </div>
+              )}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                {avgPre!==null&&(
+                  <div style={{background:"#141414",border:"1px solid #1e1e1e",borderRadius:8,padding:"10px 12px"}}>
+                    <div style={{fontSize:9,color:"#3a3a3a",fontFamily:"monospace",marginBottom:6}}>AVG FATIGUE GOING IN</div>
+                    <div style={{fontSize:18,color:FATIGUE_COL[Math.round(avgPre)],fontFamily:"monospace"}}>{FATIGUE_LABEL[Math.round(avgPre)]}</div>
+                    <div style={{fontSize:9,color:"#444",fontFamily:"monospace"}}>last {preScores.length} sessions</div>
+                  </div>
+                )}
+                {avgPost!==null&&(
+                  <div style={{background:"#141414",border:"1px solid #1e1e1e",borderRadius:8,padding:"10px 12px"}}>
+                    <div style={{fontSize:9,color:"#3a3a3a",fontFamily:"monospace",marginBottom:6}}>AVG FATIGUE AFTER</div>
+                    <div style={{fontSize:18,color:FATIGUE_COL[Math.round(avgPost)],fontFamily:"monospace"}}>{FATIGUE_LABEL[Math.round(avgPost)]}</div>
+                    <div style={{fontSize:9,color:"#444",fontFamily:"monospace"}}>last {postScores.length} sessions</div>
+                  </div>
+                )}
+              </div>
+              <div style={{fontSize:9,color:"#3a3a3a",fontFamily:"monospace",marginBottom:7}}>RECENT SESSIONS</div>
+              <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                {recentWithFatigue.map((s,i)=>{
+                  const a=getAct(s.type);
+                  const preC=FATIGUE_COL[FATIGUE_SCORE[s.fatigue_pre]]||"#333";
+                  const postC=FATIGUE_COL[FATIGUE_SCORE[s.fatigue_post]]||"#333";
+                  return(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:8,fontSize:9,fontFamily:"monospace"}}>
+                      <span style={{color:"#444",width:60,flexShrink:0}}>{new Date(s._dk+"T12:00:00").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}</span>
+                      <span style={{color:a.color,width:40,flexShrink:0}}>{a.short}</span>
+                      {s.fatigue_pre&&<span style={{color:preC,background:preC+"18",borderRadius:3,padding:"1px 5px"}}>in: {s.fatigue_pre}</span>}
+                      {s.fatigue_post&&<span style={{color:postC,background:postC+"18",borderRadius:3,padding:"1px 5px"}}>out: {s.fatigue_post}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ── Session notes search ── */}
+        <div style={{background:"#0d0d0d",border:"1px solid #181818",borderRadius:12,padding:"14px 16px",marginBottom:18}}>
+          <div style={{fontSize:9,letterSpacing:"0.18em",color:"#3a3a3a",fontFamily:"monospace",marginBottom:10}}>SESSION NOTES SEARCH</div>
+          <input
+            style={{background:"#090909",border:"1px solid #1e1e1e",borderRadius:7,padding:"8px 12px",color:"#bbb",fontSize:11,fontFamily:"monospace",outline:"none",width:"100%",boxSizing:"border-box",marginBottom:10}}
+            placeholder="Search notes… e.g. knee, tired, fast"
+            value={noteSearch}
+            onChange={e=>setNoteSearch(e.target.value)}
+          />
+          {noteSearch.trim().length>=2&&noteResults.length===0&&(
+            <div style={{color:"#2a2a2a",fontFamily:"monospace",fontSize:11}}>No notes found for "{noteSearch}"</div>
+          )}
+          {noteResults.map((s,i)=>{
+            const a=getAct(s.type);
+            const d=new Date(s._dk+"T12:00:00");
+            const q=noteSearch.toLowerCase();
+            const idx=s.notes.toLowerCase().indexOf(q);
+            const snippet=s.notes.substring(Math.max(0,idx-20),Math.min(s.notes.length,idx+60));
+            return(
+              <div key={i} style={{borderTop:"1px solid #141414",padding:"9px 0",display:"flex",gap:10,alignItems:"flex-start"}}>
+                <span style={{fontSize:11,color:"#444",fontFamily:"monospace",width:90,flexShrink:0}}>{d.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"2-digit"})}</span>
+                <span style={{fontSize:10,color:a.color,fontFamily:"monospace",width:40,flexShrink:0}}>{a.icon} {a.short}</span>
+                <span style={{fontSize:10,color:"#666",fontFamily:"monospace",flex:1,fontStyle:"italic"}}>
+                  {idx>20?"…":""}{snippet.replace(new RegExp(noteSearch,"gi"),m=>`[${m}]`)}{s.notes.length>idx+60?"…":""}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Projected mileage curve ── */}
+        {(projectedRun.length>0||projectedBike.length>0)&&(
+          <div style={{background:"#0d0d0d",border:"1px solid #181818",borderRadius:12,padding:"14px 16px"}}>
+            <div style={{fontSize:9,letterSpacing:"0.18em",color:"#3a3a3a",fontFamily:"monospace",marginBottom:4}}>PROJECTED MILEAGE — MAX SAFE CURVE</div>
+            <div style={{fontSize:9,color:"#2a2a2a",fontFamily:"monospace",marginBottom:12}}>Based on current volume + 10%/week ceiling. Do not exceed these numbers.</div>
+            <div style={{display:"grid",gridTemplateColumns:"100px 1fr 60px",gap:"0 8px",marginBottom:6}}>
+              <span style={{fontSize:8,color:"#2a2a2a",fontFamily:"monospace"}}>WEEK</span>
+              <span style={{fontSize:8,color:"#2a2a2a",fontFamily:"monospace"}}>MAX SAFE</span>
+              <span style={{fontSize:8,color:"#2a2a2a",fontFamily:"monospace",textAlign:"right"}}>KM</span>
+            </div>
+            {projectedRun.length>0&&(
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:9,color:C.run,fontFamily:"monospace",marginBottom:7}}>🏃 RUN — from {fmtKm(latestRunKm)} this week</div>
+                {projectedRun.map(({week,max,deload})=>(
+                  <div key={week} style={{display:"grid",gridTemplateColumns:"100px 1fr 60px",gap:"0 8px",marginBottom:5,alignItems:"center"}}>
+                    <span style={{fontSize:9,fontFamily:"monospace",color:deload?"#4CAF70":"#444"}}>{deload?"↓ deload":""}{!deload?`+${week}w`:` +${week}w`}</span>
+                    <div style={{height:5,background:"#141414",borderRadius:3,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${max/projMaxKm*100}%`,background:deload?"#4CAF7066":`${C.run}66`,borderRadius:3,backgroundImage:deload?"none":`repeating-linear-gradient(45deg,transparent,transparent 3px,${C.run}22 3px,${C.run}22 6px)`}}/>
+                    </div>
+                    <span style={{fontSize:9,fontFamily:"monospace",color:deload?"#4CAF70":C.run,textAlign:"right"}}>{fmtKm(max)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {projectedBike.length>0&&(
+              <div>
+                <div style={{fontSize:9,color:C.bike,fontFamily:"monospace",marginBottom:7}}>🚵 RIDE — from {fmtKm(latestBikeKm)} this week</div>
+                {projectedBike.map(({week,max,deload})=>(
+                  <div key={week} style={{display:"grid",gridTemplateColumns:"100px 1fr 60px",gap:"0 8px",marginBottom:5,alignItems:"center"}}>
+                    <span style={{fontSize:9,fontFamily:"monospace",color:deload?"#4CAF70":"#444"}}>{deload?"↓ deload":""}{!deload?`+${week}w`:` +${week}w`}</span>
+                    <div style={{height:5,background:"#141414",borderRadius:3,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${max/projMaxKm*100}%`,background:deload?"#4CAF7066":`${C.bike}66`,borderRadius:3,backgroundImage:deload?"none":`repeating-linear-gradient(45deg,transparent,transparent 3px,${C.bike}22 3px,${C.bike}22 6px)`}}/>
+                    </div>
+                    <span style={{fontSize:9,fontFamily:"monospace",color:deload?"#4CAF70":C.bike,textAlign:"right"}}>{fmtKm(max)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{marginTop:12,background:"#E0603018",border:"1px solid #E0603040",borderRadius:6,padding:"7px 10px",fontSize:10,color:"#E06030",fontFamily:"monospace"}}>⚠ These are ceilings, not targets. Staying below the line is always the right call.</div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const ExportCopyButton = ({data}) => {
+    const [open, setOpen] = useState(false);
+    const json = JSON.stringify(data, null, 2);
+    return (
+      <>
+        <button
+          style={{background:"transparent",border:"1px solid #1e1e1e",borderRadius:6,color:"#3a3a3a",fontSize:10,padding:"6px 14px",cursor:"pointer",fontFamily:"monospace"}}
+          onClick={()=>setOpen(v=>!v)}>
+          {open?"✕ close export":"⎘ export json"}
+        </button>
+        {open&&(
+          <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setOpen(false)}>
+            <div style={{background:"#0d0d0d",border:"1px solid #333",borderRadius:12,padding:20,width:"100%",maxWidth:600,maxHeight:"80vh",display:"flex",flexDirection:"column",gap:12}} onClick={e=>e.stopPropagation()}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontSize:10,color:"#555",fontFamily:"monospace",letterSpacing:"0.1em"}}>SELECT ALL → COPY → PASTE INTO A .json FILE</span>
+                <button onClick={()=>setOpen(false)} style={{background:"transparent",border:"none",color:"#555",cursor:"pointer",fontSize:14}}>✕</button>
+              </div>
+              <textarea
+                readOnly
+                defaultValue={json}
+                onFocus={e=>e.target.select()}
+                style={{flex:1,minHeight:320,background:"#090909",border:"1px solid #1e1e1e",borderRadius:7,color:"#aaa",fontSize:10,fontFamily:"monospace",padding:12,resize:"none",outline:"none",overflowY:"auto"}}
+              />
+              <div style={{fontSize:9,color:"#333",fontFamily:"monospace"}}>Click the text area — it will auto-select. Then Ctrl+C / Cmd+C to copy.</div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  const TdCount = ({done,planned,target,color}) => (
+    <td style={{padding:"7px 10px"}}>
+      <span style={{color:done>=target?color:planned>0?"#666":"#252525",fontFamily:"monospace",fontSize:10}}>
+        {done}/{target}{planned>done?<span style={{color:"#333",fontSize:9}}> +{planned-done}</span>:null}
+      </span>
+    </td>
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // MODAL
+  // ─────────────────────────────────────────────────────────────────────────
+  const isRun  = es?.type==="run";
+  const isBike = es?.type==="bike";
+  const isStrength = es?.type==="strength_long"||es?.type==="strength_short";
+  const actColor = es?.type ? getAct(es.type).color : C.strengthLong;
+
+  if(!loaded) return <div style={{minHeight:"100vh",background:"#0a0a0a",display:"flex",alignItems:"center",justifyContent:"center",color:"#2a2a2a",fontFamily:"monospace"}}>loading…</div>;
+
+  return(
+    <div style={{minHeight:"100vh",background:"#0a0a0a",color:"#ddd",fontFamily:"'Georgia',serif",padding:"20px 16px 60px",position:"relative"}}>
+      <div style={{position:"fixed",inset:0,opacity:0.28,pointerEvents:"none",zIndex:0,
+        backgroundImage:`url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E")`}}/>
+
+      {/* Header */}
+      <header style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,position:"relative",zIndex:1}}>
+        <div>
+          <div style={{fontSize:9,letterSpacing:"0.2em",color:"#2e2e2e",fontFamily:"monospace",marginBottom:3}}>TRAINING LOAD PLANNER</div>
+          <h1 style={{fontSize:23,fontWeight:"normal",margin:0,color:"#ccc",fontStyle:"italic"}}>Weekly Tracker</h1>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:7,alignItems:"flex-end"}}>
+          <div style={{display:"flex",background:"#0e0e0e",border:"1px solid #1a1a1a",borderRadius:8,overflow:"hidden"}}>
+            {[["tracker","Tracker"],["stats","Stats"],["insights","Insights"]].map(([p,l])=>(
+              <button key={p} style={{background:page===p?"#161616":"transparent",border:"none",color:page===p?"#D4580A":"#3a3a3a",padding:"7px 16px",cursor:"pointer",fontSize:11,fontFamily:"monospace",letterSpacing:"0.06em"}}
+                onClick={()=>setPage(p)}>{l}</button>
+            ))}
+          </div>
+          {page==="tracker"&&(
+            <div style={{display:"flex",background:"#0e0e0e",border:"1px solid #1a1a1a",borderRadius:8,overflow:"hidden"}}>
+              {[["single","Week"],["multi","4 Weeks"]].map(([m,l])=>(
+                <button key={m} style={{background:viewMode===m?"#161616":"transparent",border:"none",color:viewMode===m?"#D4580A":"#3a3a3a",padding:"6px 14px",cursor:"pointer",fontSize:10,fontFamily:"monospace"}}
+                  onClick={()=>setViewMode(m)}>{l}</button>
+              ))}
+            </div>
+          )}
+        </div>
+      </header>
+
+      <div style={{position:"relative",zIndex:1}}>
+        {page==="tracker" ? (viewMode==="single"?<SingleWeek/>:<MultiWeek/>) : page==="stats" ? <StatsPage/> : <InsightsPage/>}
+      </div>
+
+      {page==="tracker"&&(
+        <div style={{background:"#090909",border:"1px solid #141414",borderRadius:10,padding:"11px 15px",marginTop:18,position:"relative",zIndex:1}}>
+          <div style={{fontSize:8,letterSpacing:"0.18em",color:"#2e2e2e",fontFamily:"monospace",marginBottom:7}}>INJURY LOAD RULES</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:"4px 20px"}}>
+            {[["#4CAF70","2–3 rest/easy days per week"],["#F09A50","No BodyPump + Strength back to back"],["#CC2244","Max 2 consecutive hard days before rest"],["#3A78D4","Increase run/ride ≤10% per week"]].map(([c,t])=>(
+              <div key={t} style={{fontSize:10,color:"#3e3e3e",fontFamily:"monospace",display:"flex",gap:6}}>
+                <span style={{color:c}}>✦</span>{t}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Export / Import ── */}
+      <div style={{position:"relative",zIndex:1,marginTop:12,display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <ExportCopyButton data={data} />
+        <label style={{background:"transparent",border:"1px solid #1e1e1e",borderRadius:6,color:"#3a3a3a",fontSize:10,padding:"6px 14px",cursor:"pointer",fontFamily:"monospace"}}>
+          ↑ import json
+          <input type="file" accept=".json" style={{display:"none"}} onChange={e=>{
+            const file=e.target.files[0]; if(!file) return;
+            const reader=new FileReader();
+            reader.onload=ev=>{
+              try{
+                const imported=JSON.parse(ev.target.result);
+                if(typeof imported==="object"&&imported!==null){
+                  const merged={...data,...imported};
+                  persist(merged);
+                  alert("Import successful — "+Object.keys(imported).length+" days loaded.");
+                } else { alert("Invalid file format."); }
+              } catch { alert("Could not parse JSON file."); }
+            };
+            reader.readAsText(file);
+            e.target.value="";
+          }}/>
+        </label>
+      </div>
+
+      {/* ── MODAL ── */}
+      {modal&&es&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:18}}
+          onClick={closeModal}>
+          <div style={{background:"#111",border:"1px solid #1e1e1e",borderRadius:14,width:"100%",maxWidth:600,maxHeight:"93vh",overflowY:"auto"}}
+            onClick={e=>e.stopPropagation()}>
+
+            {/* Modal header */}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",padding:"16px 20px 12px",borderBottom:"1px solid #1a1a1a"}}>
+              <div>
+                <div style={{fontSize:9,color:"#3a3a3a",fontFamily:"monospace",letterSpacing:"0.12em",marginBottom:2}}>
+                  {new Date(es._dk+"T12:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})}
+                </div>
+                <div style={{fontSize:17,color:"#ccc",fontStyle:"italic"}}>
+                  {(data[es._dk]||[]).find(s=>s.id===es.id)?"Edit session":"Add session"}
+                </div>
+              </div>
+              <button style={{background:"transparent",border:"none",color:"#3a3a3a",fontSize:16,cursor:"pointer",padding:4}} onClick={closeModal}>✕</button>
+            </div>
+
+            <div style={{padding:"14px 20px",display:"flex",flexDirection:"column",gap:14}}>
+
+              {/* Status — at top, completed by default */}
+              <FG label="Status">
+                <Pills options={["Planned","Completed"]} colors={{Planned:"#555",Completed:C.strengthLong}} value={es.done?"Completed":"Planned"} onChange={v=>setEs({...es,done:v==="Completed"})}/>
+              </FG>
+
+              {/* Activity type */}
+              <FG label="Activity type">
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:5}}>
+                  {ACTIVITY_TYPES.filter(a=>a.id!=="rest").map(a=>(
+                    <button key={a.id} style={{background:es.type===a.id?`${a.color}18`:"transparent",border:`1px solid ${es.type===a.id?a.color:"#222"}`,borderRadius:7,padding:"7px 4px",fontSize:10,cursor:"pointer",fontFamily:"monospace",color:es.type===a.id?a.color:"#4a4a4a",textAlign:"center"}}
+                      onClick={()=>setEs({...es,type:a.id,muscles:a.group==="strength"?es.muscles:[]})}>
+                      {a.icon} {a.label}
+                    </button>
+                  ))}
+                </div>
+              </FG>
+
+              {/* Muscle groups */}
+              {isStrength&&(
+                <FG label="Muscle groups trained">
+                  <div style={{display:"flex",gap:6}}>
+                    {MUSCLE_GROUPS.map(mg=>{
+                      const sel=(es.muscles||[]).includes(mg.id);
+                      return(
+                        <button key={mg.id} style={{background:sel?`${C.strengthLong}22`:"transparent",border:`1px solid ${sel?C.strengthLong:"#222"}`,borderRadius:7,padding:"7px 14px",fontSize:11,cursor:"pointer",fontFamily:"monospace",color:sel?C.strengthLong:"#4a4a4a",flex:1}}
+                          onClick={()=>{const m=es.muscles||[];setEs({...es,muscles:sel?m.filter(x=>x!==mg.id):[...m,mg.id]})}}>
+                          {mg.icon} {mg.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </FG>
+              )}
+
+              {/* ── Duration slider + text (hidden for run/bike — they use their own time field) ── */}
+              {!isRun&&!isBike&&(
+                <FG label="Activity duration">
+                  <SliderInput
+                    value={es.durationMins||0}
+                    onChange={v=>setEs({...es,durationMins:v,durationText:""})}
+                    min={0} max={120} step={5}
+                    color={actColor} unit=" min"
+                  />
+                  <input style={{...INP,marginTop:4}} placeholder="Or type your own: e.g. 1h 30, 45 min, 1:20"
+                    value={es.durationText}
+                    onChange={e=>setEs({...es,durationText:e.target.value,durationMins:parseMins(e.target.value)||es.durationMins})}/>
+                </FG>
+              )}
+
+              {/* ── Run fields ── */}
+              {isRun&&(
+                <div style={{background:"#0d0d0d",border:`1px solid ${C.run}22`,borderRadius:9,padding:"12px 14px",display:"flex",flexDirection:"column",gap:12}}>
+                  <div style={{fontSize:9,letterSpacing:"0.14em",color:C.run,fontFamily:"monospace",opacity:0.7}}>RUN DETAILS</div>
+                  <FG label={`Distance (0 – 15 km)`}>
+                    <SliderInput value={parseFloat(es.runDistKm)||0} onChange={v=>setEs({...es,runDistKm:v})} min={0} max={15} step={0.5} color={C.run} unit=" km"/>
+                    <input style={{...INP,marginTop:4}} placeholder="Or type: e.g. 8.5 km, 10"
+                      value={typeof es.runDistKm==="string"&&isNaN(es.runDistKm)?es.runDistKm:es.runDistKm||""}
+                      onChange={e=>setEs({...es,runDistKm:e.target.value})}/>
+                  </FG>
+                  <FG label="Run time">
+                    <SliderInput value={es.runTimeMins||0} onChange={v=>setEs({...es,runTimeMins:v,runTimeText:""})} min={0} max={120} step={5} color={C.run} unit=" min"/>
+                    <input style={{...INP,marginTop:4}} placeholder="Or type: e.g. 42 min, 1:05"
+                      value={es.runTimeText||""}
+                      onChange={e=>setEs({...es,runTimeText:e.target.value,runTimeMins:parseMins(e.target.value)||es.runTimeMins})}/>
+                  </FG>
+                  {(parseKm(es.runDistKm)>0&&(es.runTimeMins>0||parseMins(es.runTimeText)>0))&&(
+                    <div style={{fontSize:10,fontFamily:"monospace",color:"#555"}}>
+                      Pace: <span style={{color:C.run}}>{((es.runTimeMins||parseMins(es.runTimeText))/parseKm(es.runDistKm)).toFixed(1)} min/km</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Bike fields ── */}
+              {isBike&&(
+                <div style={{background:"#0d0d0d",border:`1px solid ${C.bike}22`,borderRadius:9,padding:"12px 14px",display:"flex",flexDirection:"column",gap:12}}>
+                  <div style={{fontSize:9,letterSpacing:"0.14em",color:C.bike,fontFamily:"monospace",opacity:0.7}}>RIDE DETAILS</div>
+                  <FG label={`Distance (0 – 25 km)`}>
+                    <SliderInput value={parseFloat(es.bikeDistKm)||0} onChange={v=>setEs({...es,bikeDistKm:v})} min={0} max={25} step={0.5} color={C.bike} unit=" km"/>
+                    <input style={{...INP,marginTop:4}} placeholder="Or type: e.g. 18 km, 22.5"
+                      value={typeof es.bikeDistKm==="string"&&isNaN(es.bikeDistKm)?es.bikeDistKm:es.bikeDistKm||""}
+                      onChange={e=>setEs({...es,bikeDistKm:e.target.value})}/>
+                  </FG>
+                  <FG label="Ride time">
+                    <SliderInput value={es.bikeTimeMins||0} onChange={v=>setEs({...es,bikeTimeMins:v,bikeTimeText:""})} min={0} max={120} step={5} color={C.bike} unit=" min"/>
+                    <input style={{...INP,marginTop:4}} placeholder="Or type: e.g. 55 min, 1:20"
+                      value={es.bikeTimeText||""}
+                      onChange={e=>setEs({...es,bikeTimeText:e.target.value,bikeTimeMins:parseMins(e.target.value)||es.bikeTimeMins})}/>
+                  </FG>
+                  {(parseKm(es.bikeDistKm)>0&&(es.bikeTimeMins>0||parseMins(es.bikeTimeText)>0))&&(
+                    <div style={{fontSize:10,fontFamily:"monospace",color:"#555"}}>
+                      Pace: <span style={{color:C.bike}}>{((es.bikeTimeMins||parseMins(es.bikeTimeText))/parseKm(es.bikeDistKm)).toFixed(1)} min/km</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Intensity */}
+              <FG label="Intensity">
+                <Pills options={INTENSITY_LEVELS} colors={INTENSITY_COLORS} value={es.intensity} onChange={v=>setEs({...es,intensity:v})}/>
+              </FG>
+
+              {/* Fatigue */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <FG label="Fatigue going in"><Pills options={FATIGUE_LEVELS} colors={FATIGUE_COLORS} value={es.fatigue_pre} onChange={v=>setEs({...es,fatigue_pre:v})} small/></FG>
+                <FG label="Fatigue after">   <Pills options={FATIGUE_LEVELS} colors={FATIGUE_COLORS} value={es.fatigue_post} onChange={v=>setEs({...es,fatigue_post:v})} small/></FG>
+              </div>
+
+              {/* Food */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <FG label="Food before"><input style={INP} placeholder="e.g. banana, fasted" value={es.food_pre||""} onChange={e=>setEs({...es,food_pre:e.target.value})}/></FG>
+                <FG label="Food after"> <input style={INP} placeholder="e.g. protein shake"  value={es.food_post||""} onChange={e=>setEs({...es,food_post:e.target.value})}/></FG>
+              </div>
+
+              {/* Notes */}
+              <FG label="Notes">
+                <textarea style={{...INP,height:52,resize:"vertical"}} placeholder="How did it feel? Any leg niggles?" value={es.notes||""} onChange={e=>setEs({...es,notes:e.target.value})}/>
+              </FG>
+
+            </div>
+
+            <div style={{display:"flex",justifyContent:"flex-end",gap:9,padding:"11px 20px 16px",borderTop:"1px solid #1a1a1a"}}>
+              {(data[es._dk]||[]).find(s=>s.id===es.id)&&(
+                <button style={{background:"transparent",border:"1px solid #250e0e",borderRadius:6,color:"#CC2244",fontSize:10,padding:"7px 14px",cursor:"pointer",fontFamily:"monospace",marginRight:"auto"}}
+                  onClick={()=>{delSess(es._dk,es.id);closeModal();}}>Delete</button>
+              )}
+              <button style={{background:C.strengthLong,border:"none",borderRadius:6,color:"#0a0a0a",fontSize:11,padding:"8px 20px",cursor:"pointer",fontFamily:"monospace",fontWeight:"bold"}}
+                onClick={handleSave}>Save session</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+const FG = ({label,children}) => (
+  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+    <label style={{fontSize:9,color:"#3a3a3a",letterSpacing:"0.14em",fontFamily:"monospace"}}>{label}</label>
+    {children}
+  </div>
+);
+
+const Pills = ({options,colors,value,onChange,small}) => (
+  <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+    {options.map(o=>{const c=colors[o]||"#666",active=value===o;return(
+      <button key={o} style={{background:active?`${c}18`:"transparent",border:`1px solid ${active?c:"#1e1e1e"}`,borderRadius:20,padding:small?"3px 9px":"4px 12px",fontSize:small?10:11,color:active?c:"#3e3e3e",cursor:"pointer",fontFamily:"monospace"}}
+        onClick={()=>onChange(o)}>{o}</button>
+    );})}
+  </div>
+);
+
+const BT = { nav:{background:"transparent",border:"1px solid #1a1a1a",borderRadius:6,color:"#444",padding:"6px 12px",cursor:"pointer",fontSize:13,fontFamily:"monospace"} };
+const CD = { target:{background:"#0e0e0e",border:"1px solid #181818",borderRadius:8,padding:"10px 12px"} };
+const CH = { week:{fontSize:8,letterSpacing:"0.14em",color:"#D4580A",fontFamily:"monospace",background:"#D4580A10",border:"1px solid #D4580A28",borderRadius:3,padding:"2px 6px",display:"inline-block",marginTop:2} };
+const INP = {background:"#090909",border:"1px solid #1a1a1a",borderRadius:6,padding:"7px 10px",color:"#bbb",fontSize:11,fontFamily:"monospace",outline:"none",width:"100%",boxSizing:"border-box"};
+
+
+// Mount function — called by PIN gate
+window._mountReact = () => {
+  const root = ReactDOM.createRoot(document.getElementById("root"));
+  root.render(<App />);
+};
+
+// If PIN was already cleared this session, mount immediately
+if (sessionStorage.getItem("td_unlocked")) {
+  window._mountReact();
+}
+</script>
+</body>
+</html>
